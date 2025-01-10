@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pandas
+openpyxl
+pydantic
+python-multipart
+streamlit
+plotly
+pytest
+httpx
+watchdog
