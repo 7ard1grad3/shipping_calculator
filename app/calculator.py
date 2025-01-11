@@ -69,6 +69,8 @@ class ShippingCalculator:
             service_level=service_level,
             country=country
         )
+        if base_rate is None:
+            raise ValueError("Rate not listed for provided parameters")
 
         # Calculate extra fees sequentially
         extra_fees, fee_breakdown = self.calculate_sequential_fees(base_rate)

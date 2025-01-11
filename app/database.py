@@ -227,7 +227,7 @@ class Database:
             """, (zone, service_level, float(weight), float(weight), country))
 
             result = cursor.fetchone()
-            if not result:
+            if not result or result[0] is None:
                 raise ValueError(
                     f"No rate found for weight {weight}kg in zone {zone} "
                     f"with service level {service_level} and country {country}"
