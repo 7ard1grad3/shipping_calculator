@@ -111,7 +111,7 @@ class TeladMapper:
                 "width": combined_dims['width'],
                 "height": combined_dims['height'],
                 "actual_weight": combined_dims['actual_weight'],
-                "service_level": "Priority"  # Default to priority service
+                "service_level": "Economy"  # Default service
             }
         except Exception as e:
             logger.error(f"Error mapping request: {str(e)}")

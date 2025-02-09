@@ -120,45 +120,59 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
         # Calculate prices for all service levels
         service_levels = []
         for service_level in ["Economy", "Road Express", "Priority"]:
-            result = calculator.calculate_price(
-                num_collo=int(mapping["dimensions"]["num_collo"]),
-                length=mapping["dimensions"]["length"],
-                width=mapping["dimensions"]["width"],
-                height=mapping["dimensions"]["height"],
-                actual_weight=mapping["combined_weight"],
-                country=mapping["country_code"],
-                zipcode=request_data.Shipping_Zip,
-                service_level=service_level
-            )
-            print(result)
-            service_levels.append({
-                "name": service_level,
-                "price": math.ceil(result["total_price"]),
-                "currency": "eur"
-            })
+            try:
+                result = calculator.calculate_price(
+                    num_collo=int(mapping["dimensions"]["num_collo"]),
+                    length=mapping["dimensions"]["length"],
+                    width=mapping["dimensions"]["width"],
+                    height=mapping["dimensions"]["height"],
+                    actual_weight=mapping["combined_weight"],
+                    country=mapping["country_code"],
+                    zipcode=request_data.Shipping_Zip,
+                    service_level=service_level
+                )
+                print(result)
+                service_levels.append({
+                    "name": service_level,
+                    "price": math.ceil(result["total_price"]),
+                    "currency": "eur"
+                })
 
-            history_data = {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'country': mapping["country_code"],
-            'zipcode': request_data.Shipping_Zip,
-            'service_level': service_level,
-            'num_collo': mapping["dimensions"]["num_collo"],
-            'length': mapping["dimensions"]["length"],
-            'width': mapping["dimensions"]["width"],
-            'height': mapping["dimensions"]["height"],
-            'actual_weight': mapping["combined_weight"],
-            'volume_weight': volume_weight,
-            'loading_meter_weight': loading_meter_weight,
-            'chargeable_weight': round(calc["chargeable_weight"], 2),
-            'weight_type': calc["weight_type"],
-            'zone': calc["zone"],
-            'base_rate': math.ceil(result["base_rate"]),
-            'extra_fees': math.ceil(result["extra_fees"]),
-            'total_price': math.ceil(result["total_price"])
-            }
-            db.add_calculation_history(history_data)
-        
-        
+                history_data = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'country': mapping["country_code"],
+                'zipcode': request_data.Shipping_Zip,
+                'service_level': service_level,
+                'num_collo': mapping["dimensions"]["num_collo"],
+                'length': mapping["dimensions"]["length"],
+                'width': mapping["dimensions"]["width"],
+                'height': mapping["dimensions"]["height"],
+                'actual_weight': mapping["combined_weight"],
+                'volume_weight': volume_weight,
+                'loading_meter_weight': loading_meter_weight,
+                'chargeable_weight': round(calc["chargeable_weight"], 2),
+                'weight_type': calc["weight_type"],
+                'zone': calc["zone"],
+                'base_rate': math.ceil(result["base_rate"]),
+                'extra_fees': math.ceil(result["extra_fees"]),
+                'total_price': math.ceil(result["total_price"])
+                }
+                db.add_calculation_history(history_data)
+            except Exception as e:
+                logger.error(f"Error calculating price for {service_level}: {str(e)}")
+                if not service_levels:  # If this is the first service level and it failed
+                    return TeladResponse(
+                        status="error",
+                        error_message=str(e),
+                        zone="",
+                        chargeable_weight=0,
+                        weight_type="",
+                        combined_weight=0,
+                        non_stackable_weight=0,
+                        dimensions={"length": 0, "width": 0, "height": 0, "num_collo": 0},
+                        service_levels=[]
+                    )
+                continue  # Skip this service level if others are available
         
         # Create response with all service levels
         response = TeladResponse(
