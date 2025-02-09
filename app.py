@@ -33,10 +33,64 @@ def load_configs():
 
 # Set page config
 st.set_page_config(
-    page_title="CTS Shipping Calculator",
+    page_title="Shipping Calculator",
     page_icon="🚚",
     layout="wide"
 )
+
+# Custom CSS for better styling
+st.markdown("""
+    <style>
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 20px;
+        background-color: #f0f2f6;
+        border-radius: 4px 4px 0 0;
+    }
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 16px;
+        font-weight: 500;
+    }
+    div[data-testid="stExpander"] div[role="button"] p {
+        font-size: 16px;
+        font-weight: 500;
+    }
+    .stButton button {
+        width: 100%;
+        border-radius: 4px;
+        padding: 4px 8px;
+    }
+    div.stButton > button:first-child {
+        background-color: #007bff;
+        color: white;
+    }
+    div.stButton > button:hover {
+        background-color: #0056b3;
+        color: white;
+    }
+    .warning-box {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+        margin-bottom: 1rem;
+    }
+    .success-box {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        margin-bottom: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# App title with icon
+st.title("🚚 Shipping Calculator")
 
 # Check authentication
 if not is_authenticated():
@@ -53,17 +107,17 @@ else:
     with calculator.pricing_data.db.get_connection() as conn:
         countries_df = pd.read_sql("SELECT DISTINCT country FROM zones ORDER BY country", conn)
 
-    # Tabs for different features
+    # Create tabs with better styling
     tab1, tab2, tab3 = st.tabs([
-        "Single Calculation",
-        "Configurations",
-        "Calculation History"
+        "📊 Calculator",
+        "⚙️ Configurations",
+        "📜 History"
     ])
 
-    # Single Calculation Tab
+    # Calculator Tab
     with tab1:
-        st.header("Shipping Price Calculator")
-
+        st.markdown("### Calculate Shipping Costs")
+        
         # Destination Details
         st.subheader("Destination")
         col1, col2 = st.columns(2)

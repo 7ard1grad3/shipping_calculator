@@ -10,3 +10,4 @@ pytest
 httpx
 watchdog
 iso3166
+python-dotenv

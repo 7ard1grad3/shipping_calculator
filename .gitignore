@@ -3,3 +3,6 @@
 .pytest_cache
 data/shipping.db
 .DS_Store
+.env
+__pycache__/
+*.pyc
