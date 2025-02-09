@@ -1,15 +1,18 @@
-import pytest
-from app.calculator import ShippingCalculator
-from app.data_loader import PricingData
 import os
 from pathlib import Path
+
+import pytest
+
+from app.calculator import ShippingCalculator
+from app.data_loader import PricingData
+from configurations import EXCEL_FILE
 
 
 @pytest.fixture
 def calculator():
     # Use a test database path
     test_db_path = "data/test_shipping.db"
-    data_path = "data/CTS flat buy 2024 1.xlsx"
+    data_path = f"data/{EXCEL_FILE}"
 
     if not Path(data_path).exists():
         pytest.skip("Test data file not found")
@@ -61,7 +64,7 @@ def test_price_calculation_stackable(calculator):
         actual_weight=75,
         country="DE",
         zipcode="40123",
-        service_level="Prio (1BD)"
+        service_level="Priority"
     )
 
     assert isinstance(result, dict)
@@ -83,7 +86,7 @@ def test_price_calculation_non_stackable(calculator):
         actual_weight=75,
         country="DE",
         zipcode="40123",
-        service_level="Prio (1BD)"
+        service_level="Priority"
     )
 
     assert result['weight_type'] == 'loading_meter'
@@ -100,7 +103,7 @@ def test_invalid_dimensions(calculator):
             actual_weight=75,
             country="DE",
             zipcode="40123",
-            service_level="Prio (1BD)"
+            service_level="Priority"
         )
 
 
@@ -115,7 +118,7 @@ def test_invalid_weight(calculator):
             actual_weight=1200,  # > 1000kg max
             country="DE",
             zipcode="40123",
-            service_level="Prio (1BD)"
+            service_level="Priority"
         )
 
 
@@ -130,7 +133,7 @@ def test_invalid_zipcode(calculator):
             actual_weight=75,
             country="DE",
             zipcode="99999",  # Invalid zip code prefix
-            service_level="Prio (1BD)"
+            service_level="Priority"
         )
 
 
@@ -160,7 +163,7 @@ def test_weight_type_selection(calculator):
         actual_weight=75,
         country="DE",
         zipcode="40123",
-        service_level="Prio (1BD)",
+        service_level="Priority",
         weight_type='volume'
     )
     assert result_volume['weight_type'] == 'volume'
@@ -174,7 +177,7 @@ def test_weight_type_selection(calculator):
         actual_weight=75,
         country="DE",
         zipcode="40123",
-        service_level="Prio (1BD)",
+        service_level="Priority",
         weight_type='actual'
     )
     assert result_actual['weight_type'] == 'actual'
@@ -188,7 +191,7 @@ def test_weight_type_selection(calculator):
         actual_weight=75,
         country="DE",
         zipcode="40123",
-        service_level="Prio (1BD)",
+        service_level="Priority",
         weight_type='loading_meter'
     )
     assert result_ldm['weight_type'] == 'loading_meter'

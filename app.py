@@ -5,13 +5,16 @@ from pathlib import Path
 from app.calculator import ShippingCalculator
 from app.data_loader import PricingData
 from datetime import datetime
+from app.auth import create_login_page, is_authenticated
+
+from configurations import EXCEL_FILE
 
 
 # Initialize database and calculator
 @st.cache_resource
 def initialize_calculator():
     pricing_data = PricingData(
-        excel_path="data/CTS flat buy 2024 1.xlsx",
+        excel_path=f"data/{EXCEL_FILE}",
         db_path="data/shipping.db"
     )
     return ShippingCalculator(pricing_data)
@@ -28,370 +31,374 @@ def load_configs():
     }
 
 
-# Page config
+# Set page config
 st.set_page_config(
     page_title="CTS Shipping Calculator",
     page_icon="🚚",
     layout="wide"
 )
 
-# Initialize calculator
-calculator = initialize_calculator()
+# Check authentication
+if not is_authenticated():
+    create_login_page()
+else:
+    # Initialize calculator
+    calculator = initialize_calculator()
 
-# Load configurations from database
-if 'config' not in st.session_state:
-    st.session_state.config = load_configs()
+    # Load configurations from database
+    if 'config' not in st.session_state:
+        st.session_state.config = load_configs()
 
-# Load unique countries
-with calculator.pricing_data.db.get_connection() as conn:
-    countries_df = pd.read_sql("SELECT DISTINCT country FROM zones ORDER BY country", conn)
-
-# Tabs for different features
-tab1, tab2, tab3 = st.tabs([
-    "Single Calculation",
-    "Configurations",
-    "Calculation History"
-])
-
-# Single Calculation Tab
-with tab1:
-    st.header("Shipping Price Calculator")
-
-    # Destination Details
-    st.subheader("Destination")
-    col1, col2 = st.columns(2)
-    with col1:
-        country = st.selectbox(
-            "Country",
-            options=countries_df['country'].tolist(),
-            help="Select destination country"
-        )
-
-    with col2:
-        zipcode = st.text_input(
-            "Zip/Postal Code",
-            help="Enter destination zip/postal code"
-        )
-
-    # Shipment Details
-    st.subheader("Shipment Details")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        service_level = st.selectbox(
-            "Service Level",
-            options=['Prio (1BD)', 'Road (2-3 BD)', 'Eco (4-5 BD)'],
-            help="Select shipping service level"
-        )
-
-    with col2:
-        num_collo = st.number_input(
-            "Number of Collo",
-            min_value=1,
-            value=1,
-            step=1,
-            help="Enter number of collo"
-        )
-
-    with col3:
-        actual_weight = st.number_input(
-            "Actual Weight (kg)",
-            min_value=0.1,
-            max_value=1000.0,
-            value=1.0,
-            step=0.1,
-            format="%.1f",
-            help="Enter actual weight in kilograms"
-        )
-
-    # Dimensions
-    st.subheader("Dimensions (cm)")
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        length = st.number_input(
-            "Length",
-            min_value=1.0,
-            max_value=240.0,
-            value=120.0,
-            step=0.1,
-            format="%.1f",
-            help="Enter length in centimeters (max 240)"
-        )
-
-    with col2:
-        width = st.number_input(
-            "Width",
-            min_value=1.0,
-            max_value=120.0,
-            value=80.0,
-            step=0.1,
-            format="%.1f",
-            help="Enter width in centimeters (max 120)"
-        )
-
-    with col3:
-        height = st.number_input(
-            "Height",
-            min_value=1.0,
-            max_value=220.0,
-            value=100.0,
-            step=0.1,
-            format="%.1f",
-            help="Enter height in centimeters (max 220)"
-        )
-
-    with col4:
-        weight_type = st.selectbox(
-            "Weight Type",
-            options=['volume', 'actual', 'loading_meter'],
-            index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
-            help="Select weight type for calculation"
-        )
-
-    if all([length, width, height]):
-        volume_weight = calculator.calculate_volume_weight(num_collo, length, width, height)
-        loading_meter_weight = calculator.calculate_loading_meter_weight(num_collo, length, width)
-
-        st.subheader("Calculated Weights")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Actual Weight (kg)", f"{actual_weight:.2f}")
-        with col2:
-            st.metric("Volume Weight (kg)", f"{volume_weight:.2f}")
-        with col3:
-            st.metric("Loading Meter Weight (kg)", f"{loading_meter_weight:.2f}")
-
-        if height > 120:
-            st.warning("Height exceeds 120cm - Shipment will be calculated as non-stackable")
-
-    if st.button("Calculate Price", type="primary"):
-        if not zipcode:
-            st.error("Please enter a zip/postal code")
-        else:
-            try:
-                result = calculator.calculate_price(
-                    num_collo=num_collo,
-                    length=length,
-                    width=width,
-                    height=height,
-                    actual_weight=actual_weight,
-                    country=country,
-                    zipcode=zipcode,
-                    service_level=service_level,
-                    weight_type=weight_type
-                )
-
-                # Store calculation in history
-                history_entry = {
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'country': country,
-                    'zipcode': zipcode,
-                    'service_level': service_level,
-                    'num_collo': num_collo,
-                    'length': length,
-                    'width': width,
-                    'height': height,
-                    'actual_weight': actual_weight,
-                    'volume_weight': volume_weight,
-                    'loading_meter_weight': loading_meter_weight,
-                    'chargeable_weight': result['chargeable_weight'],
-                    'weight_type': result['weight_type'],
-                    'zone': result['zone'],
-                    'base_rate': result['base_rate'],
-                    'extra_fees': result['extra_fees'],
-                    'total_price': result['total_price']
-                }
-                calculator.pricing_data.db.add_calculation_history(history_entry)
-
-                # Display results
-                st.success(f"Using {result['weight_type'].upper()} weight for calculation")
-
-                # Display zone and weight information
-                st.info(f"""
-                Zone: {result['zone']}
-                Chargeable Weight: {result['chargeable_weight']:.2f} kg
-                Weight Type Used: {result['weight_type'].title()}
-                """)
-
-                # Price breakdown
-                st.subheader("Price Breakdown")
-
-                # Create a detailed breakdown table
-                breakdown = result['fee_breakdown']
-                breakdown_data = pd.DataFrame([
-                    {"Step": "Base Rate", "Amount": breakdown['base_rate'], "Cumulative": breakdown['base_rate']},
-                    {"Step": f"+ NNR Premium ({breakdown['nnr_premium']['percentage']}%)",
-                     "Amount": breakdown['nnr_premium']['amount'],
-                     "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount']},
-                    {"Step": f"+ Unilog Premium ({breakdown['unilog_premium']['percentage']}%)",
-                     "Amount": breakdown['unilog_premium']['amount'],
-                     "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount'] +
-                                   breakdown['unilog_premium']['amount']},
-                    {"Step": f"+ Fuel Surcharge ({breakdown['fuel_surcharge']['percentage']}%)",
-                     "Amount": breakdown['fuel_surcharge']['amount'],
-                     "Cumulative": breakdown['final_price']},
-                ])
-
-                st.dataframe(
-                    breakdown_data,
-                    column_config={
-                        "Step": "Calculation Step",
-                        "Amount": st.column_config.NumberColumn("Amount", format="$%.2f"),
-                        "Cumulative": st.column_config.NumberColumn("Cumulative Total", format="$%.2f")
-                    },
-                    hide_index=True
-                )
-
-                # Final price metrics
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Total Extra Fees", f"${breakdown['total_extra_fees']:.2f}")
-                with col2:
-                    st.metric("Final Price", f"${breakdown['final_price']:.2f}")
-
-            except Exception as e:
-                st.error(f"Error calculating price: {str(e)}")
-
-# Configurations Tab
-with tab2:
-    st.header("Configurations")
-
-    with st.form("config_form"):
-        st.subheader("Default Settings")
-
-        default_weight_type = st.selectbox(
-            "Default Weight Type",
-            options=['volume', 'actual', 'loading_meter'],
-            index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
-            help="Select the default weight type for calculations"
-        )
-
-        st.subheader("Fee Settings")
-        nnr_premium = st.number_input(
-            "NNR Premium Fees (%)",
-            value=float(st.session_state.config['NNR_PREMIUM_FEES']),
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            format="%.1f",
-            help="Set the NNR Premium Fees percentage"
-        )
-
-        unilog_premium = st.number_input(
-            "Unilog Premium Fees (%)",
-            value=float(st.session_state.config['UNILOG_PREMIUM_FEES']),
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            format="%.1f",
-            help="Set the Unilog Premium Fees percentage"
-        )
-
-        fuel_surcharge = st.number_input(
-            "Fuel Surcharge (%)",
-            value=float(st.session_state.config['FUEL_SURCHARGE']),
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            format="%.1f",
-            help="Set the Fuel Surcharge percentage"
-        )
-
-        if st.form_submit_button("Save Configuration"):
-            # Save to database
-            db = calculator.pricing_data.db
-            db.set_config('DEFAULT_WEIGHT_TYPE', default_weight_type)
-            db.set_config('NNR_PREMIUM_FEES', str(nnr_premium))
-            db.set_config('UNILOG_PREMIUM_FEES', str(unilog_premium))
-            db.set_config('FUEL_SURCHARGE', str(fuel_surcharge))
-
-            # Update session state
-            st.session_state.config.update({
-                'DEFAULT_WEIGHT_TYPE': default_weight_type,
-                'NNR_PREMIUM_FEES': float(nnr_premium),
-                'UNILOG_PREMIUM_FEES': float(unilog_premium),
-                'FUEL_SURCHARGE': float(fuel_surcharge)
-            })
-
-            st.success("Configuration saved successfully!")
-
-    # Show configuration history
-    st.subheader("Configuration History")
+    # Load unique countries
     with calculator.pricing_data.db.get_connection() as conn:
-        history_df = pd.read_sql("""
-            SELECT name, value, updated_at
-            FROM configurations
-            ORDER BY updated_at DESC
-        """, conn)
+        countries_df = pd.read_sql("SELECT DISTINCT country FROM zones ORDER BY country", conn)
 
-        st.dataframe(
-            history_df,
-            column_config={
-                "name": "Setting",
-                "value": "Value",
-                "updated_at": "Last Updated"
-            }
-        )
+    # Tabs for different features
+    tab1, tab2, tab3 = st.tabs([
+        "Single Calculation",
+        "Configurations",
+        "Calculation History"
+    ])
 
-# Calculation History Tab
-with tab3:
-    st.header("Calculation History")
+    # Single Calculation Tab
+    with tab1:
+        st.header("Shipping Price Calculator")
 
-    history = calculator.pricing_data.db.get_calculation_history()
-    if not history:
-        st.info("No calculations yet")
-    else:
-        history_df = pd.DataFrame(history)
-
-        # Display summary statistics
-        st.subheader("Statistics")
-        col1, col2, col3 = st.columns(3)
+        # Destination Details
+        st.subheader("Destination")
+        col1, col2 = st.columns(2)
         with col1:
-            st.metric("Total Calculations", len(history_df))
-        with col2:
-            st.metric("Average Price", f"${history_df['total_price'].mean():.2f}")
-        with col3:
-            st.metric("Total Revenue", f"${history_df['total_price'].sum():.2f}")
-
-        # Timeline chart
-        st.subheader("Price History")
-        fig = px.line(
-            history_df,
-            x='timestamp',
-            y='total_price',
-            hover_data=['country', 'zipcode', 'service_level', 'weight_type'],
-            title='Price History Over Time'
-        )
-        st.plotly_chart(fig)
-
-        # Full history table
-        st.subheader("Detailed History")
-        st.dataframe(
-            history_df[[
-                'timestamp', 'country', 'zipcode', 'service_level',
-                'actual_weight', 'weight_type', 'total_price', 'zone'
-            ]].sort_values('timestamp', ascending=False)
-            .style.format({
-                'actual_weight': '{:.2f} kg',
-                'total_price': '${:.2f}'
-            })
-        )
-
-        # Export option
-        if st.button("Export History"):
-            csv = history_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name="calculation_history.csv",
-                mime="text/csv"
+            country = st.selectbox(
+                "Country",
+                options=countries_df['country'].tolist(),
+                help="Select destination country"
             )
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center'>
-    <p>CTS Shipping Calculator v1.0</p>
-</div>
-""", unsafe_allow_html=True)
+        with col2:
+            zipcode = st.text_input(
+                "Zip/Postal Code",
+                help="Enter destination zip/postal code"
+            )
+
+        # Shipment Details
+        st.subheader("Shipment Details")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            service_level = st.selectbox(
+                "Service Level",
+                options=['Priority', 'Road Express', 'Economy'],
+                help="Select shipping service level"
+            )
+
+        with col2:
+            num_collo = st.number_input(
+                "Number of Collo",
+                min_value=1,
+                value=1,
+                step=1,
+                help="Enter number of collo"
+            )
+
+        with col3:
+            actual_weight = st.number_input(
+                "Actual Weight (kg)",
+                min_value=0.1,
+                max_value=1000.0,
+                value=1.0,
+                step=0.1,
+                format="%.1f",
+                help="Enter actual weight in kilograms"
+            )
+
+        # Dimensions
+        st.subheader("Dimensions (cm)")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            length = st.number_input(
+                "Length",
+                min_value=1.0,
+                max_value=240.0,
+                value=120.0,
+                step=0.1,
+                format="%.1f",
+                help="Enter length in centimeters (max 240)"
+            )
+
+        with col2:
+            width = st.number_input(
+                "Width",
+                min_value=1.0,
+                max_value=120.0,
+                value=80.0,
+                step=0.1,
+                format="%.1f",
+                help="Enter width in centimeters (max 120)"
+            )
+
+        with col3:
+            height = st.number_input(
+                "Height",
+                min_value=1.0,
+                max_value=220.0,
+                value=100.0,
+                step=0.1,
+                format="%.1f",
+                help="Enter height in centimeters (max 220)"
+            )
+
+        with col4:
+            weight_type = st.selectbox(
+                "Weight Type",
+                options=['volume', 'actual', 'loading_meter'],
+                index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
+                help="Select weight type for calculation"
+            )
+
+        if all([length, width, height]):
+            volume_weight = calculator.calculate_volume_weight(num_collo, length, width, height)
+            loading_meter_weight = calculator.calculate_loading_meter_weight(num_collo, length, width)
+
+            st.subheader("Calculated Weights")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Actual Weight (kg)", f"{actual_weight:.2f}")
+            with col2:
+                st.metric("Volume Weight (kg)", f"{volume_weight:.2f}")
+            with col3:
+                st.metric("Loading Meter Weight (kg)", f"{loading_meter_weight:.2f}")
+
+            if height > 120:
+                st.warning("Height exceeds 120cm - Shipment will be calculated as non-stackable")
+
+        if st.button("Calculate Price", type="primary"):
+            if not zipcode:
+                st.error("Please enter a zip/postal code")
+            else:
+                try:
+                    result = calculator.calculate_price(
+                        num_collo=num_collo,
+                        length=length,
+                        width=width,
+                        height=height,
+                        actual_weight=actual_weight,
+                        country=country,
+                        zipcode=zipcode,
+                        service_level=service_level,
+                        weight_type=weight_type
+                    )
+
+                    # Store calculation in history
+                    history_entry = {
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'country': country,
+                        'zipcode': zipcode,
+                        'service_level': service_level,
+                        'num_collo': num_collo,
+                        'length': length,
+                        'width': width,
+                        'height': height,
+                        'actual_weight': actual_weight,
+                        'volume_weight': volume_weight,
+                        'loading_meter_weight': loading_meter_weight,
+                        'chargeable_weight': result['chargeable_weight'],
+                        'weight_type': result['weight_type'],
+                        'zone': result['zone'],
+                        'base_rate': result['base_rate'],
+                        'extra_fees': result['extra_fees'],
+                        'total_price': result['total_price']
+                    }
+                    calculator.pricing_data.db.add_calculation_history(history_entry)
+
+                    # Display results
+                    st.success(f"Using {result['weight_type'].upper()} weight for calculation")
+
+                    # Display zone and weight information
+                    st.info(f"""
+                    Zone: {result['zone']}
+                    Chargeable Weight: {result['chargeable_weight']:.2f} kg
+                    Weight Type Used: {result['weight_type'].title()}
+                    """)
+
+                    # Price breakdown
+                    st.subheader("Price Breakdown")
+
+                    # Create a detailed breakdown table
+                    breakdown = result['fee_breakdown']
+                    breakdown_data = pd.DataFrame([
+                        {"Step": "Base Rate", "Amount": breakdown['base_rate'], "Cumulative": breakdown['base_rate']},
+                        {"Step": f"+ NNR Premium ({breakdown['nnr_premium']['percentage']}%)",
+                         "Amount": breakdown['nnr_premium']['amount'],
+                         "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount']},
+                        {"Step": f"+ Unilog Premium ({breakdown['unilog_premium']['percentage']}%)",
+                         "Amount": breakdown['unilog_premium']['amount'],
+                         "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount'] +
+                                       breakdown['unilog_premium']['amount']},
+                        {"Step": f"+ Fuel Surcharge ({breakdown['fuel_surcharge']['percentage']}%)",
+                         "Amount": breakdown['fuel_surcharge']['amount'],
+                         "Cumulative": breakdown['final_price']},
+                    ])
+
+                    st.dataframe(
+                        breakdown_data,
+                        column_config={
+                            "Step": "Calculation Step",
+                            "Amount": st.column_config.NumberColumn("Amount", format="$%.2f"),
+                            "Cumulative": st.column_config.NumberColumn("Cumulative Total", format="$%.2f")
+                        },
+                        hide_index=True
+                    )
+
+                    # Final price metrics
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Extra Fees", f"${breakdown['total_extra_fees']:.2f}")
+                    with col2:
+                        st.metric("Final Price", f"${breakdown['final_price']:.2f}")
+
+                except Exception as e:
+                    st.error(f"Error calculating price: {str(e)}")
+
+    # Configurations Tab
+    with tab2:
+        st.header("Configurations")
+
+        with st.form("config_form"):
+            st.subheader("Default Settings")
+
+            default_weight_type = st.selectbox(
+                "Default Weight Type",
+                options=['volume', 'actual', 'loading_meter'],
+                index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
+                help="Select the default weight type for calculations"
+            )
+
+            st.subheader("Fee Settings")
+            nnr_premium = st.number_input(
+                "NNR Premium Fees (%)",
+                value=float(st.session_state.config['NNR_PREMIUM_FEES']),
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.1f",
+                help="Set the NNR Premium Fees percentage"
+            )
+
+            unilog_premium = st.number_input(
+                "Unilog Premium Fees (%)",
+                value=float(st.session_state.config['UNILOG_PREMIUM_FEES']),
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.1f",
+                help="Set the Unilog Premium Fees percentage"
+            )
+
+            fuel_surcharge = st.number_input(
+                "Fuel Surcharge (%)",
+                value=float(st.session_state.config['FUEL_SURCHARGE']),
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.1f",
+                help="Set the Fuel Surcharge percentage"
+            )
+
+            if st.form_submit_button("Save Configuration"):
+                # Save to database
+                db = calculator.pricing_data.db
+                db.set_config('DEFAULT_WEIGHT_TYPE', default_weight_type)
+                db.set_config('NNR_PREMIUM_FEES', str(nnr_premium))
+                db.set_config('UNILOG_PREMIUM_FEES', str(unilog_premium))
+                db.set_config('FUEL_SURCHARGE', str(fuel_surcharge))
+
+                # Update session state
+                st.session_state.config.update({
+                    'DEFAULT_WEIGHT_TYPE': default_weight_type,
+                    'NNR_PREMIUM_FEES': float(nnr_premium),
+                    'UNILOG_PREMIUM_FEES': float(unilog_premium),
+                    'FUEL_SURCHARGE': float(fuel_surcharge)
+                })
+
+                st.success("Configuration saved successfully!")
+
+        # Show configuration history
+        st.subheader("Configuration History")
+        with calculator.pricing_data.db.get_connection() as conn:
+            history_df = pd.read_sql("""
+                SELECT name, value, updated_at
+                FROM configurations
+                ORDER BY updated_at DESC
+            """, conn)
+
+            st.dataframe(
+                history_df,
+                column_config={
+                    "name": "Setting",
+                    "value": "Value",
+                    "updated_at": "Last Updated"
+                }
+            )
+
+    # Calculation History Tab
+    with tab3:
+        st.header("Calculation History")
+
+        history = calculator.pricing_data.db.get_calculation_history()
+        if not history:
+            st.info("No calculations yet")
+        else:
+            history_df = pd.DataFrame(history)
+
+            # Display summary statistics
+            st.subheader("Statistics")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Calculations", len(history_df))
+            with col2:
+                st.metric("Average Price", f"${history_df['total_price'].mean():.2f}")
+            with col3:
+                st.metric("Total Revenue", f"${history_df['total_price'].sum():.2f}")
+
+            # Timeline chart
+            st.subheader("Price History")
+            fig = px.line(
+                history_df,
+                x='timestamp',
+                y='total_price',
+                hover_data=['country', 'zipcode', 'service_level', 'weight_type'],
+                title='Price History Over Time'
+            )
+            st.plotly_chart(fig)
+
+            # Full history table
+            st.subheader("Detailed History")
+            st.dataframe(
+                history_df[[
+                    'timestamp', 'country', 'zipcode', 'service_level',
+                    'actual_weight', 'weight_type', 'total_price', 'zone'
+                ]].sort_values('timestamp', ascending=False)
+                .style.format({
+                    'actual_weight': '{:.2f} kg',
+                    'total_price': '${:.2f}'
+                })
+            )
+
+            # Export option
+            if st.button("Export History"):
+                csv = history_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv,
+                    file_name="calculation_history.csv",
+                    mime="text/csv"
+                )
+
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center'>
+        <p>CTS Shipping Calculator v1.0</p>
+    </div>
+    """, unsafe_allow_html=True)

@@ -9,3 +9,4 @@ plotly
 pytest
 httpx
 watchdog
+iso3166

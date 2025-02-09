@@ -21,9 +21,9 @@ A comprehensive shipping price calculator implementing CTS Group's pricing rules
 - **Maximum Weight**: 1000 kg per pallet
 
 ### Service Levels
-- Prio (1BD)
-- Road (2-3 BD)
-- Eco (4-5 BD)
+- Priority
+- Road Express
+- Economy
 
 ## Installation
 
@@ -86,7 +86,7 @@ response = requests.post(
         "width": 80,
         "height": 100,
         "actual_weight": 75,
-        "service_level": "Prio (1BD)"
+        "service_level": "Priority"
     }
 )
 print(response.json())

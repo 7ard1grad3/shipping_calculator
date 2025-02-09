@@ -197,7 +197,7 @@ class Database:
                     zones_str = ", ".join(f"{z[0]} -> {z[1]}" for z in available_zones)
                     raise ValueError(
                         f"No zone found for country {country} and zip code prefix '{zip_prefix}'. "
-                        f"Available prefixes and zones: {zones_str}"
+                        # f"Available prefixes and zones: {zones_str}"
                     )
                 else:
                     raise ValueError(f"No zones defined for country {country}")

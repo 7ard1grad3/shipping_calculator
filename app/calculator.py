@@ -46,6 +46,7 @@ class ShippingCalculator:
                         weight_type: str = 'volume') -> dict:
         """Calculate price based on dimensions and weight"""
         # Validate dimensions
+        print("Validating dimensions")
         if length > 240 or width > 120 or height > 220:
             raise ValueError("Dimensions exceed maximum allowed values")
 

@@ -22,7 +22,7 @@ def test_calculate_price():
         "width": 80,
         "height": 100,
         "actual_weight": 75,
-        "service_level": "Prio (1BD)"
+        "service_level": "Priority"
     }
     response = client.post("/calculate-price", json=request_data)
     assert response.status_code == 200
@@ -52,7 +52,7 @@ def test_get_service_levels():
     data = response.json()
     assert "service_levels" in data
     assert isinstance(data["service_levels"], list)
-    assert "Prio (1BD)" in data["service_levels"]
+    assert "Priority" in data["service_levels"]
 
 
 def test_invalid_country():
@@ -71,7 +71,7 @@ def test_invalid_dimensions():
         "width": 80,
         "height": 100,
         "actual_weight": 75,
-        "service_level": "Prio (1BD)"
+        "service_level": "Priority"
     }
     response = client.post("/calculate-price", json=request_data)
     assert response.status_code == 400
