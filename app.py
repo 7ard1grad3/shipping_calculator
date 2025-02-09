@@ -82,16 +82,9 @@ else:
 
         # Shipment Details
         st.subheader("Shipment Details")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
 
         with col1:
-            service_level = st.selectbox(
-                "Service Level",
-                options=['Priority', 'Road Express', 'Economy'],
-                help="Select shipping service level"
-            )
-
-        with col2:
             num_collo = st.number_input(
                 "Number of Collo",
                 min_value=1,
@@ -100,7 +93,7 @@ else:
                 help="Enter number of collo"
             )
 
-        with col3:
+        with col2:
             actual_weight = st.number_input(
                 "Actual Weight (kg)",
                 min_value=0.1,
@@ -142,15 +135,6 @@ else:
                 help="Enter package height in centimeters (max 220cm)"
             )
 
-        # Weight Type
-        st.subheader("Weight")
-        weight_type = st.selectbox(
-            "Weight Type",
-            options=['volume', 'actual', 'loading_meter'],
-            index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
-            help="Select weight type for calculation"
-        )
-
         if all([length, width, height]):
             volume_weight = calculator.calculate_volume_weight(num_collo, length, width, height)
             loading_meter_weight = calculator.calculate_loading_meter_weight(num_collo, length, width)
@@ -167,91 +151,87 @@ else:
             if height > 120:
                 st.warning("Height exceeds 120cm - Shipment will be calculated as non-stackable")
 
-        if st.button("Calculate Price", type="primary"):
+        if st.button("Calculate Prices", type="primary"):
             if not zipcode:
                 st.error("Please enter a zip/postal code")
             else:
                 try:
-                    result = calculator.calculate_price(
-                        num_collo=num_collo,
-                        length=length,
-                        width=width,
-                        height=height,
-                        actual_weight=actual_weight,
-                        country=country,
-                        zipcode=zipcode,
-                        service_level=service_level,
-                        weight_type=weight_type
-                    )
+                    # Calculate prices for all service levels
+                    results = {}
+                    for service_level in ['Economy', 'Road Express', 'Priority']:
+                        result = calculator.calculate_price(
+                            num_collo=num_collo,
+                            length=length,
+                            width=width,
+                            height=height,
+                            actual_weight=actual_weight,
+                            country=country,
+                            zipcode=zipcode,
+                            service_level=service_level
+                        )
+                        results[service_level] = result
 
-                    # Store calculation in history
-                    with calculator.pricing_data.db.get_connection() as conn:
-                        conn.execute("""
-                            INSERT INTO calculation_history (
-                                timestamp, country, zipcode, service_level, num_collo,
+                        # Store calculation in history
+                        with calculator.pricing_data.db.get_connection() as conn:
+                            conn.execute("""
+                                INSERT INTO calculation_history (
+                                    timestamp, country, zipcode, service_level, num_collo,
+                                    length, width, height,
+                                    actual_weight, volume_weight, loading_meter_weight,
+                                    chargeable_weight, weight_type, zone,
+                                    base_rate, extra_fees, total_price
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                country, zipcode, service_level, num_collo,
                                 length, width, height,
                                 actual_weight, volume_weight, loading_meter_weight,
-                                chargeable_weight, weight_type, zone,
-                                base_rate, extra_fees, total_price
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            datetime.now().isoformat(),
-                            country, zipcode, service_level, num_collo,
-                            length, width, height,
-                            actual_weight, volume_weight, loading_meter_weight,
-                            result['chargeable_weight'], result['weight_type'], result['zone'],
-                            result['base_rate'], result['extra_fees'], result['total_price']
-                        ))
-                        conn.commit()
+                                result['chargeable_weight'], result['weight_type'], result['zone'],
+                                result['base_rate'], result['extra_fees'], result['total_price']
+                            ))
+                            conn.commit()
 
-                    # Display results
-                    st.success(f"Using {result['weight_type'].upper()} weight for calculation")
+                    # Display results for all service levels
+                    st.success(f"Using {results['Priority']['weight_type'].upper()} weight for calculation")
+                    
+                    st.subheader("Shipping Prices")
+                    
+                    for service, result in results.items():
+                        with st.expander(f"{service} - €{result['total_price']:.2f}", expanded=False):
+                            st.markdown(f"**Zone:** {result['zone']}")
+                            
+                            # Base rate
+                            st.markdown("##### Base Rate")
+                            st.markdown(f"€{result['base_rate']:.2f}")
+                            
+                            # Extra fees breakdown
+                            st.markdown("##### Extra Fees Breakdown")
+                            breakdown = result['fee_breakdown']
+                            
+                            # NNR Premium
+                            st.markdown(f"**NNR Premium ({breakdown['nnr_premium']['percentage']}%)**")
+                            st.markdown(f"€{breakdown['nnr_premium']['amount']:.2f}")
+                            
+                            # Unilog Premium
+                            st.markdown(f"**Unilog Premium ({breakdown['unilog_premium']['percentage']}%)**")
+                            st.markdown(f"€{breakdown['unilog_premium']['amount']:.2f}")
+                            
+                            # Fuel Surcharge
+                            st.markdown(f"**Fuel Surcharge ({breakdown['fuel_surcharge']['percentage']}%)**")
+                            st.markdown(f"€{breakdown['fuel_surcharge']['amount']:.2f}")
+                            
+                            # Total extra fees
+                            st.markdown("##### Total")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**Extra Fees Total:**")
+                                st.markdown(f"€{breakdown['total_extra_fees']:.2f}")
+                            with col2:
+                                st.markdown("**Final Price:**")
+                                st.markdown(f"€{breakdown['final_price']:.2f}")
 
-                    # Display zone and weight information
-                    st.info(f"""
-                    Zone: {result['zone']}
-                    Chargeable Weight: {result['chargeable_weight']:.2f} kg
-                    Weight Type Used: {result['weight_type'].title()}
-                    """)
-
-                    # Price breakdown
-                    st.subheader("Price Breakdown")
-
-                    # Create a detailed breakdown table
-                    breakdown = result['fee_breakdown']
-                    breakdown_data = pd.DataFrame([
-                        {"Step": "Base Rate", "Amount": breakdown['base_rate'], "Cumulative": breakdown['base_rate']},
-                        {"Step": f"+ NNR Premium ({breakdown['nnr_premium']['percentage']}%)",
-                         "Amount": breakdown['nnr_premium']['amount'],
-                         "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount']},
-                        {"Step": f"+ Unilog Premium ({breakdown['unilog_premium']['percentage']}%)",
-                         "Amount": breakdown['unilog_premium']['amount'],
-                         "Cumulative": breakdown['base_rate'] + breakdown['nnr_premium']['amount'] +
-                                       breakdown['unilog_premium']['amount']},
-                        {"Step": f"+ Fuel Surcharge ({breakdown['fuel_surcharge']['percentage']}%)",
-                         "Amount": breakdown['fuel_surcharge']['amount'],
-                         "Cumulative": breakdown['final_price']},
-                    ])
-
-                    st.dataframe(
-                        breakdown_data,
-                        column_config={
-                            "Step": "Calculation Step",
-                            "Amount": st.column_config.NumberColumn("Amount", format="$%.2f"),
-                            "Cumulative": st.column_config.NumberColumn("Cumulative Total", format="$%.2f")
-                        },
-                        hide_index=True
-                    )
-
-                    # Final price metrics
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Extra Fees", f"${breakdown['total_extra_fees']:.2f}")
-                    with col2:
-                        st.metric("Final Price", f"${breakdown['final_price']:.2f}")
-
-                except Exception as e:
-                    st.error(f"Error calculating price: {str(e)}")
+                except ValueError as e:
+                    st.error(str(e))
 
     # Configurations Tab
     with tab2:
@@ -344,23 +324,28 @@ else:
         else:
             history_df = pd.DataFrame(history)
 
-            # Display key metrics
-            st.subheader("Key Metrics")
-            
             # Calculate metrics
-            top_countries = (
-                history_df.groupby('country')['total_price']
-                .agg(['count', 'sum'])
-                .sort_values('sum', ascending=False)
-                .head(3)
-            )
+            country_data = []
+            for country in history_df['country'].unique():
+                country_rows = history_df[history_df['country'] == country]
+                country_data.append({
+                    'country': country,
+                    'count': len(country_rows),
+                    'total_price': country_rows['total_price'].sum()
+                })
+            country_stats = pd.DataFrame(country_data)
+            country_stats = country_stats.sort_values('total_price', ascending=False).head(3)
             
-            top_zones = (
-                history_df.groupby('zone')['total_price']
-                .agg(['count', 'sum'])
-                .sort_values('sum', ascending=False)
-                .head(3)
-            )
+            zone_data = []
+            for zone in history_df['zone'].unique():
+                zone_rows = history_df[history_df['zone'] == zone]
+                zone_data.append({
+                    'zone': zone,
+                    'count': len(zone_rows),
+                    'total_price': zone_rows['total_price'].sum()
+                })
+            zone_stats = pd.DataFrame(zone_data)
+            zone_stats = zone_stats.sort_values('total_price', ascending=False).head(3)
             
             avg_weight = history_df['loading_meter_weight'].mean()
             
@@ -369,8 +354,8 @@ else:
             
             with col1:
                 st.markdown("**🌍 Top Countries**")
-                for idx, (country, data) in enumerate(top_countries.iterrows(), 1):
-                    st.markdown(f"{idx}. {country}: {data['count']} shipments (€{data['sum']:.2f})")
+                for _, row in country_stats.iterrows():
+                    st.markdown(f"{row['country']}: {row['count']} shipments (€{row['total_price']:.2f})")
             
             with col2:
                 st.markdown("**📦 Average Loading Meter Weight**")
@@ -378,8 +363,8 @@ else:
             
             with col3:
                 st.markdown("**🎯 Top Zones**")
-                for idx, (zone, data) in enumerate(top_zones.iterrows(), 1):
-                    st.markdown(f"{idx}. {zone}: {data['count']} shipments (€{data['sum']:.2f})")
+                for _, row in zone_stats.iterrows():
+                    st.markdown(f"{row['zone']}: {row['count']} shipments (€{row['total_price']:.2f})")
 
             # Timeline charts
             st.subheader("Price History")
@@ -387,7 +372,8 @@ else:
             
             # Prepare data for plotting
             plot_df = history_df.copy()
-            plot_df['timestamp'] = pd.to_datetime(plot_df['timestamp'])
+            # Convert timestamp with a more flexible parser
+            plot_df['timestamp'] = pd.to_datetime(plot_df['timestamp'], format='mixed')
             plot_df = plot_df.sort_values('timestamp')
             
             # Create figure for price history
@@ -476,33 +462,41 @@ else:
 
             # Full history table
             st.subheader("Detailed History")
-            st.dataframe(
-                history_df[[
-                    'timestamp', 'country', 'zipcode', 'service_level', 'num_collo',
-                    'actual_weight', 'loading_meter_weight', 'weight_type', 
-                    'base_rate', 'extra_fees', 'total_price', 'zone',
-                    'length', 'width', 'height'
-                ]].sort_values('timestamp', ascending=False)
-                .style.format({
-                    'actual_weight': '{:.2f} kg',
-                    'loading_meter_weight': '{:.2f} kg',
-                    'base_rate': '€{:.2f}',
-                    'extra_fees': '€{:.2f}',
-                    'total_price': '€{:.2f}',
-                    'length': '{:.1f} cm',
-                    'width': '{:.1f} cm',
-                    'height': '{:.1f} cm'
-                })
-            )
-
-            # Export option
-            if st.button("Export History"):
+            col1, col2 = st.columns([1, 10])
+            with col1:
+                # Clear history button
+                if st.button("🗑️ Clear History"):
+                    with calculator.pricing_data.db.get_connection() as conn:
+                        conn.execute("DELETE FROM calculation_history")
+                        conn.commit()
+                    st.rerun()
+                
+                # Export button
                 csv = history_df.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="📥 Export History",
                     data=csv,
-                    file_name="calculation_history.csv",
-                    mime="text/csv"
+                    file_name='shipping_calculation_history.csv',
+                    mime='text/csv',
+                )
+            with col2:
+                st.dataframe(
+                    history_df[[
+                        'timestamp', 'country', 'zipcode', 'service_level', 'num_collo',
+                        'actual_weight', 'loading_meter_weight', 'weight_type', 
+                        'base_rate', 'extra_fees', 'total_price', 'zone',
+                        'length', 'width', 'height'
+                    ]].sort_values('timestamp', ascending=False)
+                    .style.format({
+                        'actual_weight': '{:.2f} kg',
+                        'loading_meter_weight': '{:.2f} kg',
+                        'base_rate': '€{:.2f}',
+                        'extra_fees': '€{:.2f}',
+                        'total_price': '€{:.2f}',
+                        'length': '{:.1f} cm',
+                        'width': '{:.1f} cm',
+                        'height': '{:.1f} cm'
+                    })
                 )
 
     # Footer
