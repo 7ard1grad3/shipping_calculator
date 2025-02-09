@@ -344,26 +344,135 @@ else:
         else:
             history_df = pd.DataFrame(history)
 
-            # Display summary statistics
-            st.subheader("Statistics")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Calculations", len(history_df))
-            with col2:
-                st.metric("Average Price", f"${history_df['total_price'].mean():.2f}")
-            with col3:
-                st.metric("Total Revenue", f"${history_df['total_price'].sum():.2f}")
-
-            # Timeline chart
-            st.subheader("Price History")
-            fig = px.line(
-                history_df,
-                x='timestamp',
-                y='total_price',
-                hover_data=['country', 'zipcode', 'service_level', 'weight_type'],
-                title='Price History Over Time'
+            # Display key metrics
+            st.subheader("Key Metrics")
+            
+            # Calculate metrics
+            top_countries = (
+                history_df.groupby('country')['total_price']
+                .agg(['count', 'sum'])
+                .sort_values('sum', ascending=False)
+                .head(3)
             )
-            st.plotly_chart(fig)
+            
+            top_zones = (
+                history_df.groupby('zone')['total_price']
+                .agg(['count', 'sum'])
+                .sort_values('sum', ascending=False)
+                .head(3)
+            )
+            
+            avg_weight = history_df['loading_meter_weight'].mean()
+            
+            # Display metrics in columns
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("**🌍 Top Countries**")
+                for idx, (country, data) in enumerate(top_countries.iterrows(), 1):
+                    st.markdown(f"{idx}. {country}: {data['count']} shipments (€{data['sum']:.2f})")
+            
+            with col2:
+                st.markdown("**📦 Average Loading Meter Weight**")
+                st.markdown(f"{avg_weight:.2f} kg")
+            
+            with col3:
+                st.markdown("**🎯 Top Zones**")
+                for idx, (zone, data) in enumerate(top_zones.iterrows(), 1):
+                    st.markdown(f"{idx}. {zone}: {data['count']} shipments (€{data['sum']:.2f})")
+
+            # Timeline charts
+            st.subheader("Price History")
+            col1, col2 = st.columns(2)
+            
+            # Prepare data for plotting
+            plot_df = history_df.copy()
+            plot_df['timestamp'] = pd.to_datetime(plot_df['timestamp'])
+            plot_df = plot_df.sort_values('timestamp')
+            
+            # Create figure for price history
+            with col1:
+                fig_price = px.scatter(
+                    plot_df,
+                    x='timestamp',
+                    y='total_price',
+                    color='service_level',
+                    title='Price History Over Time',
+                    labels={'total_price': 'Price (€)', 'timestamp': 'Date', 'service_level': 'Service Level'}
+                )
+                
+                # Add lines connecting points for each service level
+                for service in ['Economy', 'Road Express', 'Priority']:
+                    service_data = plot_df[plot_df['service_level'] == service]
+                    if not service_data.empty:
+                        fig_price.add_scatter(
+                            x=service_data['timestamp'],
+                            y=service_data['total_price'],
+                            mode='lines',
+                            line=dict(shape='linear'),
+                            name=service,
+                            showlegend=False
+                        )
+                
+                fig_price.update_layout(
+                    yaxis_title='Price (€)',
+                    xaxis_title='Date',
+                    legend_title='Service Level',
+                    hovermode='x unified'
+                )
+                fig_price.update_traces(
+                    hovertemplate='<br>'.join([
+                        'Date: %{x}',
+                        'Price: €%{y:.2f}',
+                        'Country: %{customdata[0]}',
+                        'Zipcode: %{customdata[1]}',
+                        'Weight Type: %{customdata[2]}'
+                    ]),
+                    customdata=plot_df[['country', 'zipcode', 'weight_type']]
+                )
+                st.plotly_chart(fig_price, use_container_width=True)
+            
+            # Create figure for loading meter weight
+            with col2:
+                fig_weight = px.scatter(
+                    plot_df,
+                    x='timestamp',
+                    y='loading_meter_weight',
+                    color='service_level',
+                    title='Loading Meter Weight History',
+                    labels={'loading_meter_weight': 'Weight (kg)', 'timestamp': 'Date', 'service_level': 'Service Level'}
+                )
+                
+                # Add lines connecting points for each service level
+                for service in ['Economy', 'Road Express', 'Priority']:
+                    service_data = plot_df[plot_df['service_level'] == service]
+                    if not service_data.empty:
+                        fig_weight.add_scatter(
+                            x=service_data['timestamp'],
+                            y=service_data['loading_meter_weight'],
+                            mode='lines',
+                            line=dict(shape='linear'),
+                            name=service,
+                            showlegend=False
+                        )
+                
+                fig_weight.update_layout(
+                    yaxis_title='Weight (kg)',
+                    xaxis_title='Date',
+                    legend_title='Service Level',
+                    hovermode='x unified'
+                )
+                fig_weight.update_traces(
+                    hovertemplate='<br>'.join([
+                        'Date: %{x}',
+                        'Weight: %{y:.2f} kg',
+                        'Country: %{customdata[0]}',
+                        'Zipcode: %{customdata[1]}',
+                        'Weight Type: %{customdata[2]}'
+                    ]),
+                    customdata=plot_df[['country', 'zipcode', 'weight_type']]
+                )
+                st.plotly_chart(fig_weight, use_container_width=True)
 
             # Full history table
             st.subheader("Detailed History")
