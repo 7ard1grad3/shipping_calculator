@@ -1,19 +1,12 @@
 import math
 from datetime import datetime
-
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from app.models import TeladRequest, TeladResponse, ShipmentRequest
+from app.mapping.telad.mapper import TeladMapper
+from app.dependencies import get_calculator, get_db
 import logging
 
-from app.mapping.telad.mapper import TeladMapper
-from app.models import TeladRequest, ShipmentRequest, TeladResponse, TeladCalculationResult, TeladMappingDetails
-from app.dependencies import get_calculator, get_db
-from typing import Dict, Any
-
-from configurations import DEFAULT_SHIPPING_SERVICE
-
-# Configure logging
 logger = logging.getLogger(__name__)
-
 router = APIRouter(
     prefix="/telad",
     tags=["telad"]
@@ -41,6 +34,7 @@ async def map_request(request_data: TeladRequest, calculator=Depends(get_calcula
             zipcode=shipment_request.zipcode,
             service_level=shipment_request.service_level.value
         )
+
         # Format the response
         return {
             "status": "success",
@@ -61,7 +55,7 @@ async def map_request(request_data: TeladRequest, calculator=Depends(get_calcula
                         "length": shipment_data["length"],
                         "width": shipment_data["width"],
                         "height": shipment_data["height"],
-                        "num_collo": shipment_request.num_collo
+                        "num_collo": shipment_data["num_collo"]
                     },
                     "service_level": shipment_data["service_level"],
                     "country_code": shipment_data["country"]
@@ -95,54 +89,76 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
             return TeladResponse(
                 status="error",
                 error_message=mapping_result["validation"]["message"],
-                total_price=0,
                 zone="",
                 chargeable_weight=0,
                 weight_type="",
                 combined_weight=0,
-                combined_volume=0,
-                dimensions={"length": 0, "width": 0, "height": 0}
+                non_stackable_weight=0,
+                dimensions={"length": 0, "width": 0, "height": 0, "num_collo": 0},
+                service_levels=[]
             )
 
         # Extract calculation and mapping details
         calc = mapping_result["calculation"]
         mapping = mapping_result["mapping"]["mapping_details"]
         
-        # Save calculation to history
+        # Calculate prices for all service levels
+        service_levels = []
+        for service_level in ["Economy", "Road Express", "Priority"]:
+            result = calculator.calculate_price(
+                num_collo=int(mapping["dimensions"]["num_collo"]),
+                length=mapping["dimensions"]["length"],
+                width=mapping["dimensions"]["width"],
+                height=mapping["dimensions"]["height"],
+                actual_weight=mapping["combined_weight"],
+                country=mapping["country_code"],
+                zipcode=request_data.Shipping_Zip,
+                service_level=service_level
+            )
+            service_levels.append({
+                "name": service_level,
+                "price": math.ceil(result["total_price"]),
+                "currency": "eur"
+            })
+
+        # Save calculation to history (using Priority service as default)
         history_data = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'country': mapping["country_code"],
             'zipcode': request_data.Shipping_Zip,
-            'service_level': mapping["service_level"],
-            'num_collo': int(mapping["dimensions"]["length"] / 100),  # Convert cm to m
+            'service_level': "Priority",
+            'num_collo': mapping["dimensions"]["num_collo"],
             'length': mapping["dimensions"]["length"],
             'width': mapping["dimensions"]["width"],
             'height': mapping["dimensions"]["height"],
             'actual_weight': mapping["combined_weight"],
             'volume_weight': calc["chargeable_weight"] if calc["weight_type"] == 'volume' else 0,
             'loading_meter_weight': calc["chargeable_weight"] if calc["weight_type"] == 'loading_meter' else 0,
-            'chargeable_weight': calc["chargeable_weight"],
+            'chargeable_weight': round(calc["chargeable_weight"], 2),
             'weight_type': calc["weight_type"],
             'zone': calc["zone"],
-            'base_rate': calc["base_rate"],
-            'extra_fees': calc["extra_fees"],
-            'total_price': calc["total_price"]
+            'base_rate': math.ceil(calc["base_rate"]),
+            'extra_fees': math.ceil(calc["extra_fees"]),
+            'total_price': math.ceil(calc["total_price"])
         }
         
         db.add_calculation_history(history_data)
-
-        print(calc)
         
-        # Create simplified response
+        # Create response with all service levels
         response = TeladResponse(
             status="success",
-            total_price=calc["total_price"],
             zone=calc["zone"],
-            chargeable_weight=calc["chargeable_weight"],
+            chargeable_weight=round(calc["chargeable_weight"], 2),
             weight_type=calc["weight_type"],
-            combined_weight=mapping["combined_weight"],
-            non_stackable_weight=mapping["non_stackable_weight"],
-            dimensions=mapping["dimensions"],
+            combined_weight=round(mapping["combined_weight"], 2),
+            non_stackable_weight=round(mapping["non_stackable_weight"], 2),
+            dimensions={
+                "length": round(mapping["dimensions"]["length"], 2),
+                "width": round(mapping["dimensions"]["width"], 2),
+                "height": round(mapping["dimensions"]["height"], 2),
+                "num_collo": mapping["dimensions"]["num_collo"]
+            },
+            service_levels=service_levels,
             error_message=None
         )
 
@@ -153,13 +169,13 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
         return TeladResponse(
             status="error",
             error_message=str(e),
-            total_price=0,
             zone="",
             chargeable_weight=0,
             weight_type="",
             combined_weight=0,
-            combined_volume=0,
-            dimensions={"length": 0, "width": 0, "height": 0}
+            non_stackable_weight=0,
+            dimensions={"length": 0, "width": 0, "height": 0, "num_collo": 0},
+            service_levels=[]
         )
 
 

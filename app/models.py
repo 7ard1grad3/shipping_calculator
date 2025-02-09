@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator, field_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import re
 
 class ServiceLevel(str, Enum):
@@ -144,33 +144,56 @@ class TeladCalculationResult(BaseModel):
     weight_type: str
     fee_breakdown: Dict[str, Any]
 
+class ServiceLevelDetails(BaseModel):
+    """Service level details"""
+    name: str
+    price: float
+    currency: str = "eur"
+
 class TeladResponse(BaseModel):
     """Response model for Telad calculation endpoint"""
     status: str
-    total_price: float
     zone: str
     chargeable_weight: float
     weight_type: str
     combined_weight: float
     non_stackable_weight: float
     dimensions: Dict[str, float]
+    service_levels: List[ServiceLevelDetails]
     error_message: Optional[str] = None
 
     class Config:
         json_schema_extra = {
             "example": {
                 "status": "success",
-                "total_price": 152.91,
                 "zone": "22",
-                "chargeable_weight": 40.425,
-                "weight_type": "volume",
-                "combined_weight": 25.85,
-                "non_stackable_weight": 61.25,
+                "chargeable_weight": 127.60416666666667,
+                "weight_type": "loading_meter",
+                "combined_weight": 125.85,
+                "non_stackable_weight": 127.60416666666667,
                 "dimensions": {
                     "length": 35.0,
                     "width": 25.0,
-                    "height": 70.0
+                    "height": 70.0,
+                    "num_collo": 2.0
                 },
+                "service_levels": [
+                    {
+                        "name": "Economy",
+                        "price": 290,
+                        "currency": "eur"
+                    },
+                    {
+                        "name": "Road Express",
+                        "price": 290,
+                        "currency": "eur"
+                    },
+                    {
+                        "name": "Priority",
+                        "price": 290,
+                        "currency": "eur"
+                    }
+                ],
                 "error_message": None
             }
         }
