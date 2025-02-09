@@ -111,50 +111,45 @@ else:
                 help="Enter actual weight in kilograms"
             )
 
-        # Dimensions
-        st.subheader("Dimensions (cm)")
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
+        # Package Dimensions
+        st.subheader("Package Dimensions (cm)")
+        dim_col1, dim_col2, dim_col3 = st.columns(3)
+        
+        with dim_col1:
             length = st.number_input(
                 "Length",
                 min_value=1.0,
                 max_value=240.0,
-                value=120.0,
-                step=0.1,
-                format="%.1f",
-                help="Enter length in centimeters (max 240)"
+                value=100.0,
+                help="Enter package length in centimeters (max 240cm)"
             )
-
-        with col2:
+            
+        with dim_col2:
             width = st.number_input(
                 "Width",
                 min_value=1.0,
                 max_value=120.0,
                 value=80.0,
-                step=0.1,
-                format="%.1f",
-                help="Enter width in centimeters (max 120)"
+                help="Enter package width in centimeters (max 120cm)"
             )
-
-        with col3:
+            
+        with dim_col3:
             height = st.number_input(
                 "Height",
                 min_value=1.0,
                 max_value=220.0,
-                value=100.0,
-                step=0.1,
-                format="%.1f",
-                help="Enter height in centimeters (max 220)"
+                value=120.0,
+                help="Enter package height in centimeters (max 220cm)"
             )
 
-        with col4:
-            weight_type = st.selectbox(
-                "Weight Type",
-                options=['volume', 'actual', 'loading_meter'],
-                index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
-                help="Select weight type for calculation"
-            )
+        # Weight Type
+        st.subheader("Weight")
+        weight_type = st.selectbox(
+            "Weight Type",
+            options=['volume', 'actual', 'loading_meter'],
+            index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
+            help="Select weight type for calculation"
+        )
 
         if all([length, width, height]):
             volume_weight = calculator.calculate_volume_weight(num_collo, length, width, height)
@@ -190,26 +185,24 @@ else:
                     )
 
                     # Store calculation in history
-                    history_entry = {
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'country': country,
-                        'zipcode': zipcode,
-                        'service_level': service_level,
-                        'num_collo': num_collo,
-                        'length': length,
-                        'width': width,
-                        'height': height,
-                        'actual_weight': actual_weight,
-                        'volume_weight': volume_weight,
-                        'loading_meter_weight': loading_meter_weight,
-                        'chargeable_weight': result['chargeable_weight'],
-                        'weight_type': result['weight_type'],
-                        'zone': result['zone'],
-                        'base_rate': result['base_rate'],
-                        'extra_fees': result['extra_fees'],
-                        'total_price': result['total_price']
-                    }
-                    calculator.pricing_data.db.add_calculation_history(history_entry)
+                    with calculator.pricing_data.db.get_connection() as conn:
+                        conn.execute("""
+                            INSERT INTO calculation_history (
+                                timestamp, country, zipcode, service_level, num_collo,
+                                length, width, height,
+                                actual_weight, volume_weight, loading_meter_weight,
+                                chargeable_weight, weight_type, zone,
+                                base_rate, extra_fees, total_price
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            datetime.now().isoformat(),
+                            country, zipcode, service_level, num_collo,
+                            length, width, height,
+                            actual_weight, volume_weight, loading_meter_weight,
+                            result['chargeable_weight'], result['weight_type'], result['zone'],
+                            result['base_rate'], result['extra_fees'], result['total_price']
+                        ))
+                        conn.commit()
 
                     # Display results
                     st.success(f"Using {result['weight_type'].upper()} weight for calculation")
@@ -376,12 +369,20 @@ else:
             st.subheader("Detailed History")
             st.dataframe(
                 history_df[[
-                    'timestamp', 'country', 'zipcode', 'service_level',
-                    'actual_weight', 'weight_type', 'total_price', 'zone'
+                    'timestamp', 'country', 'zipcode', 'service_level', 'num_collo',
+                    'actual_weight', 'loading_meter_weight', 'weight_type', 
+                    'base_rate', 'extra_fees', 'total_price', 'zone',
+                    'length', 'width', 'height'
                 ]].sort_values('timestamp', ascending=False)
                 .style.format({
                     'actual_weight': '{:.2f} kg',
-                    'total_price': '${:.2f}'
+                    'loading_meter_weight': '{:.2f} kg',
+                    'base_rate': '€{:.2f}',
+                    'extra_fees': '€{:.2f}',
+                    'total_price': '€{:.2f}',
+                    'length': '{:.1f} cm',
+                    'width': '{:.1f} cm',
+                    'height': '{:.1f} cm'
                 })
             )
 
