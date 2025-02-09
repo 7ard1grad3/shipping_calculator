@@ -54,7 +54,7 @@ class TeladMapper:
                 width = width * 100
                 height = height * 100
                 depth = depth * 100
-
+                print(weight)
                 # Update maximums
                 max_width = max(max_width, width)
                 max_length = max(max_length, depth)

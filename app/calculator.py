@@ -21,7 +21,7 @@ class ShippingCalculator:
         # Define available weight types
         weight_map = {
             'actual': actual_weight,
-            'volume': volume_weight,
+            #'volume': volume_weight,
             'loading_meter': loading_meter_weight
         }
 
@@ -36,7 +36,7 @@ class ShippingCalculator:
         # Otherwise, return the maximum weight
         weights = [
             (actual_weight, 'actual'),
-            (volume_weight, 'volume'),
+            # (volume_weight, 'volume'),
             (loading_meter_weight, 'loading_meter')
         ]
         return max(weights, key=lambda x: x[0])

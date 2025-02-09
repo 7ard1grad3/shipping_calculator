@@ -147,40 +147,30 @@ class TeladCalculationResult(BaseModel):
 class TeladResponse(BaseModel):
     """Response model for Telad calculation endpoint"""
     status: str
-    calculation: Optional[TeladCalculationResult] = None
-    mapping_details: Optional[TeladMappingDetails] = None
+    total_price: float
+    zone: str
+    chargeable_weight: float
+    weight_type: str
+    combined_weight: float
+    non_stackable_weight: float
+    dimensions: Dict[str, float]
     error_message: Optional[str] = None
 
     class Config:
         json_schema_extra = {
             "example": {
                 "status": "success",
-                "calculation": {
-                    "base_rate": 150.50,
-                    "extra_fees": 45.15,
-                    "total_price": 195.65,
-                    "zone": "Zone 2",
-                    "chargeable_weight": 25.85,
-                    "weight_type": "actual",
-                    "fee_breakdown": {
-                        "base_rate": 150.50,
-                        "nnr_premium": {"percentage": 20, "amount": 30.10},
-                        "unilog_premium": {"percentage": 8, "amount": 10.05},
-                        "fuel_surcharge": {"percentage": 5, "amount": 5.00},
-                        "total_extra_fees": 45.15,
-                        "final_price": 195.65
-                    }
+                "total_price": 152.91,
+                "zone": "22",
+                "chargeable_weight": 40.425,
+                "weight_type": "volume",
+                "combined_weight": 25.85,
+                "non_stackable_weight": 61.25,
+                "dimensions": {
+                    "length": 35.0,
+                    "width": 25.0,
+                    "height": 70.0
                 },
-                "mapping_details": {
-                    "combined_weight": 25.85,
-                    "combined_volume": 0.061,
-                    "dimensions": {
-                        "length": 35,
-                        "width": 25,
-                        "height": 35
-                    },
-                    "service_level": "Economy",
-                    "country_code": "DE"
-                }
+                "error_message": None
             }
         }
