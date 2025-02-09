@@ -206,13 +206,13 @@ else:
                 st.warning("Height exceeds 120cm - Shipment will be calculated as non-stackable")
 
         if st.button("Calculate Prices", type="primary"):
-            if not zipcode:
-                st.error("Please enter a zip/postal code")
-            else:
-                try:
-                    # Calculate prices for all service levels
-                    results = {}
-                    for service_level in ['Economy', 'Road Express', 'Priority']:
+            try:
+                # Calculate prices for all service levels
+                results = {}
+                errors = {}
+                
+                for service_level in ['Economy', 'Road Express', 'Priority']:
+                    try:
                         result = calculator.calculate_price(
                             num_collo=num_collo,
                             length=length,
@@ -244,48 +244,81 @@ else:
                                 result['base_rate'], result['extra_fees'], result['total_price']
                             ))
                             conn.commit()
+                    except ValueError as e:
+                        errors[service_level] = str(e)
+                    except Exception as e:
+                        errors[service_level] = f"Unexpected error: {str(e)}"
 
-                    # Display results for all service levels
-                    st.success(f"Using {results['Priority']['weight_type'].upper()} weight for calculation")
+                if not results:
+                    st.markdown(
+                        '<div class="warning-box">No service levels available for the given parameters.</div>',
+                        unsafe_allow_html=True
+                    )
+                    st.error("Errors encountered:")
+                    for service, error in errors.items():
+                        st.error(f"{service}: {error}")
+                else:
+                    # Show warning for unavailable services
+                    if errors:
+                        st.markdown(
+                            '<div class="warning-box">Some service levels are not available:</div>',
+                            unsafe_allow_html=True
+                        )
+                        for service, error in errors.items():
+                            st.warning(f"{service}: {error}")
                     
-                    st.subheader("Shipping Prices")
+                    # Display results for available service levels
+                    first_result = next(iter(results.values()))
+                    st.markdown(
+                        f'<div class="success-box">Using {first_result["weight_type"].upper()} weight for calculation</div>',
+                        unsafe_allow_html=True
+                    )
                     
-                    for service, result in results.items():
-                        with st.expander(f"{service} - €{result['total_price']:.2f}", expanded=False):
-                            st.markdown(f"**Zone:** {result['zone']}")
-                            
-                            # Base rate
-                            st.markdown("##### Base Rate")
-                            st.markdown(f"€{result['base_rate']:.2f}")
-                            
-                            # Extra fees breakdown
-                            st.markdown("##### Extra Fees Breakdown")
-                            breakdown = result['fee_breakdown']
-                            
-                            # NNR Premium
-                            st.markdown(f"**NNR Premium ({breakdown['nnr_premium']['percentage']}%)**")
-                            st.markdown(f"€{breakdown['nnr_premium']['amount']:.2f}")
-                            
-                            # Unilog Premium
-                            st.markdown(f"**Unilog Premium ({breakdown['unilog_premium']['percentage']}%)**")
-                            st.markdown(f"€{breakdown['unilog_premium']['amount']:.2f}")
-                            
-                            # Fuel Surcharge
-                            st.markdown(f"**Fuel Surcharge ({breakdown['fuel_surcharge']['percentage']}%)**")
-                            st.markdown(f"€{breakdown['fuel_surcharge']['amount']:.2f}")
-                            
-                            # Total extra fees
-                            st.markdown("##### Total")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**Extra Fees Total:**")
-                                st.markdown(f"€{breakdown['total_extra_fees']:.2f}")
-                            with col2:
-                                st.markdown("**Final Price:**")
-                                st.markdown(f"€{breakdown['final_price']:.2f}")
+                    st.markdown("### 💰 Available Shipping Prices")
+                    
+                    # Create price cards in a grid
+                    num_cols = len(results)
+                    cols = st.columns(num_cols)
+                    for idx, (service, result) in enumerate(results.items()):
+                        with cols[idx]:
+                            with st.expander(f"{service} - €{result['total_price']:.2f}", expanded=False):
+                                st.markdown(f"**Zone:** {result['zone']}")
+                                
+                                # Base rate
+                                st.markdown("##### Base Rate")
+                                st.markdown(f"€{result['base_rate']:.2f}")
+                                
+                                # Extra fees breakdown
+                                st.markdown("##### Extra Fees Breakdown")
+                                breakdown = result['fee_breakdown']
+                                
+                                # Create a clean fees table
+                                fee_data = {
+                                    "Fee Type": ["NNR Premium", "Unilog Premium", "Fuel Surcharge"],
+                                    "Percentage": [
+                                        f"{breakdown['nnr_premium']['percentage']}%",
+                                        f"{breakdown['unilog_premium']['percentage']}%",
+                                        f"{breakdown['fuel_surcharge']['percentage']}%"
+                                    ],
+                                    "Amount": [
+                                        f"€{breakdown['nnr_premium']['amount']:.2f}",
+                                        f"€{breakdown['unilog_premium']['amount']:.2f}",
+                                        f"€{breakdown['fuel_surcharge']['amount']:.2f}"
+                                    ]
+                                }
+                                st.table(pd.DataFrame(fee_data))
+                                
+                                # Total
+                                st.markdown("##### Total")
+                                st.markdown(f"""
+                                | Type | Amount |
+                                |------|--------|
+                                | Extra Fees | €{breakdown['total_extra_fees']:.2f} |
+                                | Final Price | €{breakdown['final_price']:.2f} |
+                                """)
 
-                except ValueError as e:
-                    st.error(str(e))
+            except ValueError as e:
+                st.markdown(f'<div class="warning-box">{str(e)}</div>', unsafe_allow_html=True)
 
     # Configurations Tab
     with tab2:
