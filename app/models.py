@@ -38,7 +38,7 @@ class PriceResponse(BaseModel):
     weight_type: str
 
 
-class TeladRequest(BaseModel):
+class TeldorRequest(BaseModel):
     ICL_POST_ID: int
     login: str
     Currency: str
@@ -126,7 +126,7 @@ class TeladRequest(BaseModel):
         "extra": "allow"  # Allow extra fields
     }
 
-class TeladMappingDetails(BaseModel):
+class TeldorMappingDetails(BaseModel):
     """Details about how the request was mapped to internal format"""
     combined_weight: float
     combined_volume: float
@@ -134,7 +134,7 @@ class TeladMappingDetails(BaseModel):
     service_level: str
     country_code: str
 
-class TeladCalculationResult(BaseModel):
+class TeldorCalculationResult(BaseModel):
     """Result of the shipping price calculation"""
     base_rate: float
     extra_fees: float
@@ -150,8 +150,8 @@ class ServiceLevelDetails(BaseModel):
     price: float
     currency: str = "eur"
 
-class TeladResponse(BaseModel):
-    """Response model for Telad calculation endpoint"""
+class TeldorResponse(BaseModel):
+    """Response model for Teldor calculation endpoint"""
     status: str
     zone: str
     chargeable_weight: float

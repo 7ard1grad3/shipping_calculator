@@ -1,25 +1,25 @@
 import math
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import TeladRequest, TeladResponse, ShipmentRequest
-from app.mapping.telad.mapper import TeladMapper
+from app.models import TeldorRequest, TeldorResponse, ShipmentRequest
+from app.mapping.teldor.mapper import TeldorMapper
 from app.dependencies import get_calculator, get_db
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/telad",
-    tags=["telad"]
+    prefix="/teldor",
+    tags=["teldor"]
 )
 
 
-async def map_request(request_data: TeladRequest, calculator=Depends(get_calculator)):
+async def map_request(request_data: TeldorRequest, calculator=Depends(get_calculator)):
     """Map and validate external request format, then calculate price"""
     try:
         logger.info(f"Received mapping request: {request_data}")
 
-        # Map external request to internal format using TeladMapper
-        shipment_data = TeladMapper.map_request_to_shipment(request_data.model_dump())
+        # Map external request to internal format using TeldorMapper
+        shipment_data = TeldorMapper.map_request_to_shipment(request_data.model_dump())
         logger.info(f"Mapped to internal format: {shipment_data}")
 
         # Calculate price using mapped data
@@ -76,17 +76,17 @@ async def map_request(request_data: TeladRequest, calculator=Depends(get_calcula
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/calculate", response_model=TeladResponse)
-async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_calculator), db=Depends(get_db)):
-    """Calculate price based on Telad request format"""
+@router.post("/calculate", response_model=TeldorResponse)
+async def calculate_teldor(request_data: TeldorRequest, calculator=Depends(get_calculator), db=Depends(get_db)):
+    """Calculate price based on Teldor request format"""
     try:
-        logger.info(f"Received Telad calculation request: {request_data}")
+        logger.info(f"Received Teldor calculation request: {request_data}")
 
         # Map and validate the request
         mapping_result = await map_request(request_data, calculator)
 
         if mapping_result["status"] == "error":
-            return TeladResponse(
+            return TeldorResponse(
                 status="error",
                 error_message=mapping_result["validation"]["message"],
                 zone="",
@@ -161,7 +161,7 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
             except Exception as e:
                 logger.error(f"Error calculating price for {service_level}: {str(e)}")
                 if not service_levels:  # If this is the first service level and it failed
-                    return TeladResponse(
+                    return TeldorResponse(
                         status="error",
                         error_message=str(e),
                         zone="",
@@ -175,7 +175,7 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
                 continue  # Skip this service level if others are available
         
         # Create response with all service levels
-        response = TeladResponse(
+        response = TeldorResponse(
             status="success",
             zone=calc["zone"],
             chargeable_weight=round(calc["chargeable_weight"], 2),
@@ -195,8 +195,8 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
         return response
 
     except Exception as e:
-        logger.error(f"Error in Telad calculation: {str(e)}")
-        return TeladResponse(
+        logger.error(f"Error in Teldor calculation: {str(e)}")
+        return TeldorResponse(
             status="error",
             error_message=str(e),
             zone="",
@@ -210,14 +210,14 @@ async def calculate_telad(request_data: TeladRequest, calculator=Depends(get_cal
 
 
 @router.post("/map")
-async def map_telad_request(request_data: TeladRequest, calculator=Depends(get_calculator)):
-    """Map and validate Telad request format"""
+async def map_teldor_request(request_data: TeldorRequest, calculator=Depends(get_calculator)):
+    """Map and validate Teldor request format"""
     return await map_request(request_data, calculator)
 
 
 @router.post("/validate")
-async def validate_telad_request(request_data: TeladRequest):
-    """Validate Telad request format without processing"""
+async def validate_teldor_request(request_data: TeldorRequest):
+    """Validate Teldor request format without processing"""
     try:
         return {
             "status": "success",

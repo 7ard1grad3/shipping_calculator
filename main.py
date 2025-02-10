@@ -5,7 +5,7 @@ import logging
 from app.models import ShipmentRequest
 from app.dependencies import get_calculator
 from app.utils.exception_handlers import validation_exception_handler
-from app.routes import telad_routes
+from app.routes import teldor_routes
 
 # Configure logging
 logging.basicConfig(
@@ -35,8 +35,8 @@ app.add_middleware(
 # Add exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
-# Include Telad routes
-app.include_router(telad_routes.router)
+# Include Teldor routes
+app.include_router(teldor_routes.router)
 
 
 @app.post("/calculate-price")

@@ -4,7 +4,7 @@ from iso3166 import countries
 
 logger = logging.getLogger(__name__)
 
-class TeladMapper:
+class TeldorMapper:
     @staticmethod
     def convert_iso3_to_iso2(country_code: str) -> str:
         """Convert ISO 3166-1 alpha-3 to alpha-2 country code"""

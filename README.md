@@ -1,185 +1,105 @@
-# CTS Shipping Calculator
+# Shipping Calculator
 
-A comprehensive shipping price calculator implementing CTS Group's pricing rules, including volume weight, loading meter weight, and stackable/non-stackable shipment calculations.
+## Project Overview
+The Shipping Calculator is a web-based application built with Streamlit and FastAPI that helps users calculate shipping costs based on package dimensions, weight, and destination. The application provides an intuitive interface for logistics professionals and businesses to get accurate shipping cost estimates.
 
 ## Features
+- Calculate shipping costs based on:
+  - Package dimensions (length, width, height)
+  - Number of packages (collo)
+  - Actual weight
+  - Destination country and zipcode
+  - Service level
+- Supports multiple weight calculation methods:
+  - Volume weight (stackable items)
+  - Loading meter weight (non-stackable items)
+  - Actual weight
+- Automatic weight type determination based on package height
+- User authentication system
+- Interactive data visualization with Plotly
+- Configuration management for shipping parameters
+- Database storage for pricing data and configurations
 
-### Weight Calculations
-- **Volume Weight (Stackable)**: 
-  - Formula: `Length × Width × Height × 330 × number_of_collo` (dimensions in meters)
-  - Example: 120cm × 80cm × 100cm = 1.2m × 0.8m × 1.0m × 330 = 316.8 kg
-
-- **Loading Meter Weight (Non-stackable)**:
-  - Formula: `((Width × Length)/2.4) × number_of_collo × 1750` (dimensions in meters)
-  - Example: 120cm × 80cm = ((1.2m × 0.8m)/2.4) × 1750 = 700 kg
-
-### Dimension Rules
-- **Maximum Dimensions**:
-  - Length: 240 cm
-  - Width: 120 cm
-  - Height: 220 cm (>120 cm forces non-stackable calculation)
-- **Maximum Weight**: 1000 kg per pallet
-
-### Service Levels
-- Priority
-- Road Express
-- Economy
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd shipping_calculator
-```
-
-2. Create and activate virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Place your pricing Excel file:
-```bash
-mkdir -p data
-cp "CTS flat buy 2024 1.xlsx" data/
-```
-
-## Usage
-
-### Streamlit Interface
-
-```bash
-streamlit run streamlit_app.py
-```
-Access the web interface at http://localhost:8501
-
-### FastAPI Backend
-
-```bash
-uvicorn main:app --reload
-```
-Access the API at http://localhost:8000
-
-### API Documentation
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## API Examples
-
-### Calculate Price
-```python
-import requests
-
-response = requests.post(
-    "http://localhost:8000/calculate-price",
-    json={
-        "country": "DE",
-        "zipcode": "40123",
-        "num_collo": 1,
-        "length": 120,
-        "width": 80,
-        "height": 100,
-        "actual_weight": 75,
-        "service_level": "Priority"
-    }
-)
-print(response.json())
-```
-
-### Get Zone Information
-```python
-response = requests.get("http://localhost:8000/zones/DE/40123")
-print(response.json())
-```
-
-### Get Available Service Levels
-```python
-response = requests.get("http://localhost:8000/service-levels")
-print(response.json())
-```
+## Technical Stack
+- **Frontend**: Streamlit
+- **Backend**: FastAPI
+- **Database**: SQLite
+- **Data Processing**: Pandas
+- **Visualization**: Plotly
+- **Data Format Support**: Excel (via openpyxl)
 
 ## Project Structure
 ```
 shipping_calculator/
-│
-├── app/
-│   ├── __init__.py
-│   ├── database.py      # SQLite database operations
-│   ├── models.py        # Pydantic data models
-│   ├── calculator.py    # Price calculation logic
-│   └── data_loader.py   # Excel data loading
-│
-├── data/
-│   └── CTS flat buy 2024 1.xlsx  # Pricing data
-│
-├── tests/
-│   ├── __init__.py
-│   ├── test_calculator.py
-│   └── test_api.py
-│
-├── main.py             # FastAPI application
-├── streamlit_app.py    # Streamlit interface
-├── requirements.txt
-└── README.md
+├── app/                    # Main application package
+│   ├── calculator.py       # Core shipping calculation logic
+│   └── database.py        # Database operations
+├── data/                  # Data storage
+├── tests/                 # Test files
+├── app.py                 # Main Streamlit application
+├── configurations.py      # Configuration settings
+├── main.py               # FastAPI server
+└── requirements.txt       # Project dependencies
 ```
 
-## Testing
+## Installation
 
-Run the test suite:
-```bash
-pytest
-```
+1. Clone the repository
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Copy .env.example to .env and configure your environment variables
 
-Run with coverage:
-```bash
-pytest --cov=app tests/
-```
+## Usage
 
-## Development
+1. Start the application:
+   ```bash
+   streamlit run app.py
+   ```
+2. Access the web interface through your browser (typically at `http://localhost:8501`)
+3. Log in to the system
+4. Enter package details:
+   - Number of packages
+   - Dimensions (length, width, height)
+   - Actual weight
+   - Destination country and zipcode
+   - Service level
+5. Get instant shipping cost calculations
 
-### Code Format
-```bash
-black .
-```
+## Configuration
 
-### Linting
-```bash
-flake8
-```
+The application uses several configurable parameters:
+- `DEFAULT_WEIGHT_TYPE`: Default method for weight calculation
+- `NNR_PREMIUM_FEES`: Premium fees for NNR service
+- `UNILOG_PREMIUM_FEES`: Premium fees for Unilog service
+- `FUEL_SURCHARGE`: Current fuel surcharge percentage
 
-### Type Checking
-```bash
-mypy .
-```
+These can be modified through the application's configuration interface or directly in the database.
 
-## Excel File Structure
+## Core Components
 
-The calculator expects an Excel file with the following sheets:
+### ShippingCalculator
+The main calculation engine that:
+- Calculates volume weight for stackable items
+- Calculates loading meter weight for non-stackable items
+- Determines the chargeable weight based on package characteristics
+- Computes final shipping prices based on destination and service level
 
-1. **pricelist**:
-   - Weight: Weight range (e.g., "0-50", "51-100")
-   - Zone: Zone identifier
-   - Rate: Price rate
-   - Service level: Service level name
-   - Country: Country code
-   - Type: Shipment type
+### PricingData
+Manages the pricing data and configurations:
+- Loads pricing data from Excel files
+- Stores and retrieves data from SQLite database
+- Handles configuration management
 
-2. **zones**:
-   - Zone: Zone identifier
-   - Value: Zip code prefix
-   - Country: Country code
+## Security
+- User authentication required for access
+- Environment variables for sensitive configurations
+- Input validation for all calculations
 
-## Error Handling
-
-The calculator handles various scenarios:
-- Invalid dimensions
-- Unknown zip code prefixes
-- Unsupported service levels
-- Weight range violations
-- Missing price entries
+This project provides a robust solution for shipping cost calculations, suitable for logistics companies and businesses that need accurate shipping cost estimates. The modular design allows for easy maintenance and future extensions of functionality.

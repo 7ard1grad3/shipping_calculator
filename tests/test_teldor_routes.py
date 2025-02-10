@@ -10,7 +10,7 @@ from main import app
 
 client = TestClient(app)
 
-def test_telad_calculate():
+def test_teldor_calculate():
     request_data = {
         "ICL_POST_ID": 1732535225,
         "login": "mzimmer@fibersystems.com",
@@ -39,7 +39,7 @@ def test_telad_calculate():
         "Line_2_total_KG": 17.62
     }
 
-    response = client.post("/telad/calculate", json=request_data)
+    response = client.post("/teldor/calculate", json=request_data)
     assert response.status_code == 200
     
     data = response.json()
