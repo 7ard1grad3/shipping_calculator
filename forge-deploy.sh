@@ -35,18 +35,27 @@ fi
 # Add forge user to docker group if not already added
 if ! groups forge | grep &>/dev/null '\bdocker\b'; then
     sudo usermod -aG docker forge
+    # Reload user groups without logging out
+    exec su -l $USER
 fi
+
+# Ensure ports 80 and 443 are available
+sudo lsof -ti:80,443 | xargs -r sudo kill -9
 
 # Stop any running containers
 docker-compose down
+
+# Remove old containers, networks, and volumes
+docker-compose rm -f
+docker network prune -f
 
 # Build and start the containers
 docker-compose build --no-cache
 docker-compose up -d
 
-# Prune unused images and volumes
-docker image prune -f
-docker volume prune -f
+# Wait for services to be ready
+echo "Waiting for services to be ready..."
+sleep 10
 
 # Check if containers are running
 docker-compose ps
@@ -55,3 +64,6 @@ docker-compose ps
 docker-compose logs --tail=100
 
 echo "Deployment completed successfully!"
+echo "Services should be available at:"
+echo "- https://calculator.unilog.company (Streamlit UI)"
+echo "- https://api.calculator.unilog.company (FastAPI)"
