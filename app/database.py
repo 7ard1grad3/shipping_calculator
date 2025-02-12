@@ -99,8 +99,6 @@ class Database:
             # Initialize default configurations if they don't exist
             self.initialize_default_configs()
 
-            conn.commit()
-
     def load_excel_data(self, excel_path: str):
         """Load data from Excel file into SQLite database"""
         with self.get_connection() as conn:
@@ -342,3 +340,10 @@ class Database:
                 """, (name, str(value), current_time))
 
             conn.commit()
+
+    def get_unique_countries(self):
+        """Get a list of unique countries from the price_list table"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT country FROM price_list ORDER BY country")
+            return [row[0] for row in cursor.fetchall()]

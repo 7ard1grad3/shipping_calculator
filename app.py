@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Set page config
+st.set_page_config(
+    page_title="Shipping Calculator",
+    page_icon="🚚",
+    layout="wide"
+)
+
 import pandas as pd
 import plotly.express as px
 from pathlib import Path
@@ -36,13 +44,6 @@ calculator = initialize_calculator()
 
 # Load initial configurations
 configs = load_configs()
-
-# Set page config
-st.set_page_config(
-    page_title="Shipping Calculator",
-    page_icon="🚚",
-    layout="wide"
-)
 
 # Custom CSS for better styling
 st.markdown("""
