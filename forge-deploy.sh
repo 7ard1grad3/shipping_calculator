@@ -39,15 +39,12 @@ if ! groups forge | grep &>/dev/null '\bdocker\b'; then
     exec su -l $USER
 fi
 
-# Ensure ports 80 and 443 are available
-sudo lsof -ti:80,443 | xargs -r sudo kill -9
-
-# Stop any running containers
-docker-compose down
-
-# Remove old containers, networks, and volumes
-docker-compose rm -f
+# Clean up Docker resources
+echo "Cleaning up Docker resources..."
+docker stop $(docker ps -aq) 2>/dev/null || true
+docker rm $(docker ps -aq) 2>/dev/null || true
 docker network prune -f
+docker volume prune -f
 
 # Build and start the containers
 docker-compose build --no-cache
@@ -65,5 +62,5 @@ docker-compose logs --tail=100
 
 echo "Deployment completed successfully!"
 echo "Services should be available at:"
-echo "- https://calculator.unilog.company (Streamlit UI)"
-echo "- https://api.calculator.unilog.company (FastAPI)"
+echo "- https://calculator.unilog.company:8443 (Streamlit UI)"
+echo "- https://api.calculator.unilog.company:8443 (FastAPI)"
