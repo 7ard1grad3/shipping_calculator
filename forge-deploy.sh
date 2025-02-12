@@ -14,6 +14,7 @@ git pull origin main
 
 # Create necessary directories if they don't exist
 mkdir -p data
+mkdir -p logs/traefik
 
 # Copy the .env file if it doesn't exist
 if [ ! -f .env ]; then
@@ -39,14 +40,40 @@ if ! groups forge | grep &>/dev/null '\bdocker\b'; then
     exec su -l $USER
 fi
 
-# Clean up Docker resources
-echo "Cleaning up Docker resources..."
-docker stop $(docker ps -aq) 2>/dev/null || true
-docker rm $(docker ps -aq) 2>/dev/null || true
-docker network prune -f
-docker volume prune -f
+# Check if required ports are available
+echo "Checking if required ports are available..."
+for port in 8080 9444 9001 8001 8502; do
+    if lsof -i ":$port" > /dev/null; then
+        echo "Port $port is already in use. Stopping process..."
+        sudo lsof -i ":$port" | awk 'NR!=1 {print $2}' | xargs sudo kill -9
+    fi
+done
+
+# Thorough Docker cleanup
+echo "Performing thorough Docker cleanup..."
+
+# Stop all containers
+echo "Stopping all containers..."
+docker stop $(docker ps -a -q) 2>/dev/null || true
+
+# Remove all containers
+echo "Removing all containers..."
+docker rm $(docker ps -a -q) 2>/dev/null || true
+
+# Remove all networks
+echo "Removing all networks..."
+docker network rm $(docker network ls -q) 2>/dev/null || true
+
+# Remove all volumes
+echo "Removing all volumes..."
+docker volume rm $(docker volume ls -q) 2>/dev/null || true
+
+# Remove any hanging images
+echo "Removing unused images..."
+docker system prune -af
 
 # Build and start the containers
+echo "Building and starting containers..."
 docker-compose build --no-cache
 docker-compose up -d
 
@@ -58,9 +85,15 @@ sleep 10
 docker-compose ps
 
 # Print the logs
-docker-compose logs --tail=100
+echo "Traefik Logs:"
+docker-compose logs traefik
 
 echo "Deployment completed successfully!"
 echo "Services should be available at:"
-echo "- https://calculator.unilog.company:8443 (Streamlit UI)"
-echo "- https://api.calculator.unilog.company:8443 (FastAPI)"
+echo "- https://calculator.unilog.company:9444 (Streamlit UI)"
+echo "- https://api.calculator.unilog.company:9444 (FastAPI)"
+echo "- http://your-server-ip:9001 (Traefik Dashboard)"
+
+# Monitor logs for SSL issues
+echo "Monitoring Traefik logs for SSL issues..."
+docker-compose logs -f traefik

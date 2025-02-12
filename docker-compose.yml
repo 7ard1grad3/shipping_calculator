@@ -4,6 +4,9 @@ services:
   traefik:
     image: traefik:v2.10
     command:
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--api.dashboard=true"
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -11,18 +14,21 @@ services:
       - "--entrypoints.web.address=:8080"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.websecure.address=:8443"
+      - "--entrypoints.websecure.address=:9444"
+      - "--api.dashboard.port=9001"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
       - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=admin@unilog.company"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--log.level=DEBUG"
     ports:
-      - "8080:8080"
-      - "8443:8443"
+      - "8080:8080"  # HTTP
+      - "9444:9444"  # HTTPS
+      - "9001:9001"  # Dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-certificates:/letsencrypt
+      - ./logs/traefik:/var/log/traefik
     networks:
       - web
     restart: unless-stopped
@@ -43,16 +49,16 @@ services:
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=myresolver"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.services.api.loadbalancer.server.port=8001"
       # Streamlit configuration
       - "traefik.http.routers.streamlit.rule=Host(`calculator.unilog.company`)"
       - "traefik.http.routers.streamlit.entrypoints=websecure"
       - "traefik.http.routers.streamlit.tls=true"
       - "traefik.http.routers.streamlit.tls.certresolver=myresolver"
-      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+      - "traefik.http.services.streamlit.loadbalancer.server.port=8502"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
