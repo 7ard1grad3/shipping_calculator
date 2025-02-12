@@ -38,6 +38,14 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 # Include Teldor routes
 app.include_router(teldor_routes.router)
 
+# Root endpoint
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to CTS Shipping Calculator API",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
 
 @app.post("/calculate-price")
 async def calculate_price(request: ShipmentRequest, calculator=Depends(get_calculator)):

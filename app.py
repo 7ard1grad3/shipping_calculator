@@ -31,6 +31,12 @@ def load_configs():
     }
 
 
+# Initialize calculator
+calculator = initialize_calculator()
+
+# Load initial configurations
+configs = load_configs()
+
 # Set page config
 st.set_page_config(
     page_title="Shipping Calculator",
@@ -59,62 +65,22 @@ st.markdown("""
     }
     .stButton button {
         width: 100%;
-        border-radius: 4px;
-        padding: 4px 8px;
-    }
-    div.stButton > button:first-child {
-        background-color: #007bff;
-        color: white;
-    }
-    div.stButton > button:hover {
-        background-color: #0056b3;
-        color: white;
-    }
-    .warning-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background-color: #fff3cd;
-        border: 1px solid #ffeeba;
-        color: #856404;
-        margin-bottom: 1rem;
-    }
-    .success-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
-        margin-bottom: 1rem;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# App title with icon
-st.title("🚚 Shipping Calculator")
+def main():
+    # Title
+    st.title("🚚 Shipping Calculator")
+    
+    # Authentication
+    if not is_authenticated():
+        create_login_page()
+        return
 
-# Check authentication
-if not is_authenticated():
-    create_login_page()
-else:
-    # Initialize calculator
-    calculator = initialize_calculator()
-
-    # Load configurations from database
-    if 'config' not in st.session_state:
-        st.session_state.config = load_configs()
-
-    # Load unique countries
-    with calculator.pricing_data.db.get_connection() as conn:
-        countries_df = pd.read_sql("SELECT DISTINCT country FROM zones ORDER BY country", conn)
-
-    # Create tabs with better styling
-    tab1, tab2, tab3 = st.tabs([
-        "📊 Calculator",
-        "⚙️ Configurations",
-        "📜 History"
-    ])
-
-    # Calculator Tab
+    # Create tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Calculator", "⚙️ Configurations", "📜 History"])
+    
     with tab1:
         st.markdown("### Calculate Shipping Costs")
         
@@ -124,7 +90,7 @@ else:
         with col1:
             country = st.selectbox(
                 "Country",
-                options=countries_df['country'].tolist(),
+                options=calculator.pricing_data.db.get_unique_countries(),
                 help="Select destination country"
             )
 
@@ -320,7 +286,6 @@ else:
             except ValueError as e:
                 st.markdown(f'<div class="warning-box">{str(e)}</div>', unsafe_allow_html=True)
 
-    # Configurations Tab
     with tab2:
         st.header("Configurations")
 
@@ -330,14 +295,14 @@ else:
             default_weight_type = st.selectbox(
                 "Default Weight Type",
                 options=['volume', 'actual', 'loading_meter'],
-                index=['volume', 'actual', 'loading_meter'].index(st.session_state.config['DEFAULT_WEIGHT_TYPE']),
+                index=['volume', 'actual', 'loading_meter'].index(configs['DEFAULT_WEIGHT_TYPE']),
                 help="Select the default weight type for calculations"
             )
 
             st.subheader("Fee Settings")
             nnr_premium = st.number_input(
                 "NNR Premium Fees (%)",
-                value=float(st.session_state.config['NNR_PREMIUM_FEES']),
+                value=float(configs['NNR_PREMIUM_FEES']),
                 min_value=0.0,
                 max_value=100.0,
                 step=0.1,
@@ -347,7 +312,7 @@ else:
 
             unilog_premium = st.number_input(
                 "Unilog Premium Fees (%)",
-                value=float(st.session_state.config['UNILOG_PREMIUM_FEES']),
+                value=float(configs['UNILOG_PREMIUM_FEES']),
                 min_value=0.0,
                 max_value=100.0,
                 step=0.1,
@@ -357,7 +322,7 @@ else:
 
             fuel_surcharge = st.number_input(
                 "Fuel Surcharge (%)",
-                value=float(st.session_state.config['FUEL_SURCHARGE']),
+                value=float(configs['FUEL_SURCHARGE']),
                 min_value=0.0,
                 max_value=100.0,
                 step=0.1,
@@ -374,7 +339,7 @@ else:
                 db.set_config('FUEL_SURCHARGE', str(fuel_surcharge))
 
                 # Update session state
-                st.session_state.config.update({
+                configs.update({
                     'DEFAULT_WEIGHT_TYPE': default_weight_type,
                     'NNR_PREMIUM_FEES': float(nnr_premium),
                     'UNILOG_PREMIUM_FEES': float(unilog_premium),
@@ -401,7 +366,6 @@ else:
                 }
             )
 
-    # Calculation History Tab
     with tab3:
         st.header("Calculation History")
 
@@ -593,3 +557,6 @@ else:
         <p>CTS Shipping Calculator v1.0</p>
     </div>
     """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
