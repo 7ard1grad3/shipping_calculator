@@ -1,48 +1,19 @@
 version: '3.8'
 
 services:
-  traefik:
-    image: traefik:v2.10
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--log.level=DEBUG"  # Enable debug logging
-    ports:
-      - "127.0.0.1:80:80"  # Only bind to localhost
-      - "127.0.0.1:8080:8080"  # Traefik dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - traefik-public
-
   shipping-calculator:
     build: .
-    networks:
-      - traefik-public
+    ports:
+      - "8000:8000"  # FastAPI
+      - "8501:8501"  # Streamlit
     volumes:
       - ./data:/app/data  # Persist data directory
       - ./.env:/app/.env  # Mount environment variables
     environment:
       - PYTHONUNBUFFERED=1
-    labels:
-      - "traefik.enable=true"
-      # FastAPI configuration
-      - "traefik.http.routers.api.rule=Host(`api.calculator.unilog.company`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
-      # Streamlit configuration
-      - "traefik.http.routers.streamlit.rule=Host(`calculator.unilog.company`)"
-      - "traefik.http.routers.streamlit.entrypoints=web"
-      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  traefik-public:
-    name: traefik-public
