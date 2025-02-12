@@ -13,7 +13,6 @@ cd /home/forge/calculator.unilog.company
 git pull origin main
 
 # Create necessary directories if they don't exist
-mkdir -p letsencrypt
 mkdir -p data
 
 # Copy the .env file if it doesn't exist
@@ -37,6 +36,25 @@ fi
 if ! groups forge | grep &>/dev/null '\bdocker\b'; then
     sudo usermod -aG docker forge
 fi
+
+# Copy Nginx configurations
+sudo cp nginx/calculator.conf /etc/nginx/sites-available/calculator.unilog.company
+sudo cp nginx/api.calculator.conf /etc/nginx/sites-available/api.calculator.unilog.company
+
+# Create symbolic links if they don't exist
+if [ ! -f /etc/nginx/sites-enabled/calculator.unilog.company ]; then
+    sudo ln -s /etc/nginx/sites-available/calculator.unilog.company /etc/nginx/sites-enabled/
+fi
+
+if [ ! -f /etc/nginx/sites-enabled/api.calculator.unilog.company ]; then
+    sudo ln -s /etc/nginx/sites-available/api.calculator.unilog.company /etc/nginx/sites-enabled/
+fi
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Reload Nginx to apply changes
+sudo systemctl reload nginx
 
 # Stop any running containers
 docker-compose down
