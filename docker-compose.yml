@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # HTTP configuration
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # HTTPS configuration
+      - "--entrypoints.websecure.address=:443"
+      # Let's Encrypt configuration
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@unilog.company"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt  # Persist SSL certificates
+    networks:
+      - traefik-public
+
+  shipping-calculator:
+    build: .
+    networks:
+      - traefik-public
+    volumes:
+      - ./data:/app/data  # Persist data directory
+      - ./.env:/app/.env  # Mount environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+    labels:
+      - "traefik.enable=true"
+      # FastAPI configuration
+      - "traefik.http.routers.api.rule=Host(`api.calculator.unilog.company`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      # Streamlit configuration
+      - "traefik.http.routers.streamlit.rule=Host(`calculator.unilog.company`)"
+      - "traefik.http.routers.streamlit.entrypoints=websecure"
+      - "traefik.http.routers.streamlit.tls=true"
+      - "traefik.http.routers.streamlit.tls.certresolver=letsencrypt"
+      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  traefik-public:
+    name: traefik-public
