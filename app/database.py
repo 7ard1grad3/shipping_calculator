@@ -142,8 +142,8 @@ class Database:
             def format_zip_prefix(x):
                 if pd.isna(x):
                     return None
-                if isinstance(x, (int, float)):
-                    return f"{int(x):02}"
+                # if isinstance(x, (int, float)):
+                #     return f"{int(x):02}"
                 return str(x).strip()
 
             df_zones['Value'] = df_zones['Value'].apply(format_zip_prefix)
@@ -166,19 +166,26 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Format the prefix
-            prefix = str(zipcode)[:2]
-            if prefix.isdigit():
-                zip_prefix = f"{int(prefix):02}"
+            # Format the prefixes
+            prefix2 = str(zipcode)[:2].upper()
+            prefix1 = str(zipcode)[:1].upper()
+            
+            if prefix2.isdigit():
+                zip_prefix2 = f"{int(prefix2):02}"
             else:
-                zip_prefix = prefix
+                zip_prefix2 = prefix2
+                
+            if prefix1.isdigit():
+                zip_prefix1 = f"{int(prefix1):02}"
+            else:
+                zip_prefix1 = prefix1
 
             # Get matching zone
             cursor.execute("""
                 SELECT zone 
                 FROM zones 
-                WHERE country = ? AND zip_prefix = ?
-            """, (str(country).strip(), zip_prefix))
+                WHERE country = ? AND (UPPER(zip_prefix) = ? OR UPPER(zip_prefix) = ?)
+            """, (str(country).strip(), zip_prefix2, zip_prefix1))
 
             result = cursor.fetchone()
             if not result:
@@ -194,7 +201,7 @@ class Database:
                 if available_zones:
                     zones_str = ", ".join(f"{z[0]} -> {z[1]}" for z in available_zones)
                     raise ValueError(
-                        f"No zone found for country {country} and zip code prefix '{zip_prefix}'. "
+                        f"No zone found for country {country} and zip code prefix '{zip_prefix2}' or '{zip_prefix1}'. "
                         # f"Available prefixes and zones: {zones_str}"
                     )
                 else:
