@@ -11,7 +11,7 @@ services:
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:8080"
+      - "--entrypoints.web.address=:80"           # Changed from 8080
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:9444"
@@ -21,9 +21,9 @@ services:
       - "--certificatesresolvers.myresolver.acme.email=admin@unilog.company"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     ports:
-      - "8080:8080"  # HTTP
-      - "9444:9444"  # HTTPS
-      - "9001:9001"  # Dashboard
+      - "80:80"        # Changed from 8080:8080
+      - "9444:9444"    # HTTPS
+      - "8080:8080"    # Dashboard (changed from 9001)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-certificates:/letsencrypt
