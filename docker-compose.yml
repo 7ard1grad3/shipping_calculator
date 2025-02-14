@@ -1,25 +1,14 @@
 version: '3.8'
 
 services:
-  traefik:
-    image: traefik:v2.10
-    command:
-      - "--log.level=DEBUG"
-      - "--accesslog=true"
-      - "--accesslog.filepath=/var/log/traefik/access.log"
-      - "--api.insecure=true"
-      - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:8081"
-      - "--entrypoints.websecure.address=:9444"
+  nginx:
+    image: nginx:alpine
     ports:
-      - "8081:8081"    # HTTP
-      - "9444:9444"    # HTTPS
-      - "8082:8080"    # Dashboard
+      - "8081:80"
+      - "9444:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./logs/traefik:/var/log/traefik
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/logs:/var/log/nginx
     networks:
       - web
     restart: unless-stopped
@@ -33,16 +22,6 @@ services:
       - ./.env:/app/.env
     environment:
       - PYTHONUNBUFFERED=1
-    labels:
-      - "traefik.enable=true"
-      # FastAPI configuration
-      - "traefik.http.routers.api.rule=Host(`api.calculator.unilog.company`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=8001"
-      # Streamlit configuration
-      - "traefik.http.routers.streamlit.rule=Host(`calculator.unilog.company`)"
-      - "traefik.http.routers.streamlit.entrypoints=web"
-      - "traefik.http.services.streamlit.loadbalancer.server.port=8502"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -53,6 +32,3 @@ services:
 networks:
   web:
     driver: bridge
-
-volumes:
-  traefik-certificates:
