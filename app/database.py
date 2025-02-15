@@ -354,3 +354,58 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT country FROM price_list ORDER BY country")
             return [row[0] for row in cursor.fetchall()]
+
+    def get_price_for_shipment(self, weight: float, country: str, zipcode: str, service_level: str) -> tuple:
+        """Get price and zone for a shipment"""
+        try:
+            # Get zone for the zipcode
+            zone = self.get_zone_for_zipcode(country, zipcode)
+            if not zone:
+                raise ValueError(f"No zone found for country {country} and zipcode {zipcode}")
+
+            # Get rate from price list
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT rate
+                    FROM price_list
+                    WHERE country = ? 
+                    AND zone = ?
+                    AND service_level = ?
+                    AND min_weight <= ?
+                    AND max_weight >= ?
+                    ORDER BY rate DESC
+                    LIMIT 1
+                """, (country, zone, service_level, weight, weight))
+                
+                result = cursor.fetchone()
+                if not result:
+                    raise ValueError(f"No rate found for weight {weight}kg in zone {zone}")
+                
+                rate = result[0]
+                return rate, zone
+
+        except Exception as e:
+            raise ValueError(f"Error getting price: {str(e)}")
+
+    def get_extra_fees(self, weight: float, country: str) -> list:
+        """Get list of applicable extra fees"""
+        try:
+            fees = []
+            
+            # Add fuel surcharge
+            fuel_surcharge = weight * FUEL_SURCHARGE
+            fees.append(("Fuel Surcharge", fuel_surcharge))
+
+            # Add premium fees based on country
+            if country in NNR_PREMIUM_FEES:
+                premium = weight * NNR_PREMIUM_FEES[country]
+                fees.append(("NNR Premium", premium))
+            elif country in UNILOG_PREMIUM_FEES:
+                premium = weight * UNILOG_PREMIUM_FEES[country]
+                fees.append(("Unilog Premium", premium))
+
+            return fees
+
+        except Exception as e:
+            raise ValueError(f"Error calculating extra fees: {str(e)}")

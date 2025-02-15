@@ -6,6 +6,7 @@ from app.models import ShipmentRequest
 from app.dependencies import get_calculator
 from app.utils.exception_handlers import validation_exception_handler
 from app.routes import teldor_routes
+from fastapi.openapi.utils import get_openapi
 
 # Configure logging
 logging.basicConfig(
@@ -20,8 +21,42 @@ app = FastAPI(
     description="API for calculating shipping prices based on dimensions and weight",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "Teldor",
+            "description": "Teldor shipping calculation endpoints"
+        },
+        {
+            "name": "Health",
+            "description": "Health check endpoint"
+        }
+    ],
+    openapi_url="/openapi.json"
 )
+
+# Hide all routes except /teldor/calculate and /health in the OpenAPI schema
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes
+    )
+    
+    paths_to_keep = {
+        "/teldor/calculate": openapi_schema["paths"].get("/teldor/calculate", {}),
+        "/health": openapi_schema["paths"].get("/health", {})
+    }
+    openapi_schema["paths"] = paths_to_keep
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # Add CORS middleware
 app.add_middleware(

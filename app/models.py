@@ -50,81 +50,51 @@ class TeldorRequest(BaseModel):
     Shipping_City: str
     Shipping_Country: str
     Shipping_Zip: str
-    line_items: Optional[Dict[str, Dict[str, Any]]] = None
-    extra_data: Optional[Dict[str, Any]] = None
+    Line_1_UW: float
+    Line_1_UH: float
+    Line_1_UD: float
+    Line_1_KG: float
+    Line_1_total_U: int
+    Line_1_total_V: float
+    Line_1_total_KG: float
+    Line_2_UW: float
+    Line_2_UH: float
+    Line_2_UD: float
+    Line_2_KG: float
+    Line_2_total_U: int
+    Line_2_total_V: float
+    Line_2_total_KG: float
 
-    @model_validator(mode='before')
-    def extract_line_items(cls, data: Any) -> Any:
-        """Extract and validate line items from the request"""
-        if not isinstance(data, dict):
-            raise ValueError("Input must be a dictionary")
-
-        line_items = {}
-        line_pattern = re.compile(r'^Line_(\d+)_(.+)$')
-
-        # Extract line items
-        for key, value in dict(data).items():
-            match = line_pattern.match(key)
-            if match:
-                line_num, field = match.groups()
-                if line_num not in line_items:
-                    line_items[line_num] = {}
-                line_items[line_num][field] = value
-
-                # Store the original key-value in extra_data
-                if 'extra_data' not in data:
-                    data['extra_data'] = {}
-                data['extra_data'][key] = value
-
-        # Validate each line item
-        if not line_items:
-            raise ValueError("No valid line items found in request")
-
-        for line_num, item in line_items.items():
-            required_fields = ['UW', 'UH', 'UD', 'KG', 'total_U']
-            missing_fields = [f for f in required_fields if f not in item]
-            if missing_fields:
-                raise ValueError(f"Line {line_num} missing required fields: {', '.join(missing_fields)}")
-
-            # Validate numeric values
-            for field in ['UW', 'UH', 'UD', 'KG', 'total_U']:
-                try:
-                    item[field] = float(item[field])
-                except (ValueError, TypeError):
-                    raise ValueError(f"Line {line_num} field {field} must be numeric")
-
-        data['line_items'] = line_items
-        return data
-
-    @field_validator('Shipping_Country')
-    def validate_shipping_country(cls, v: str) -> str:
-        if len(v) != 3:
-            raise ValueError('Shipping country code must be ISO 3166-1 alpha-3 format')
-        return v
-
-    @field_validator('Dispatch_Country')
-    def validate_dispatch_country(cls, v: str) -> str:
-        if len(v) != 3:
-            raise ValueError('Dispatch country code must be ISO 3166-1 alpha-3 format')
-        return v
-
-    @field_validator('Sea_Air_Land')
-    def validate_transport_mode(cls, v: str) -> str:
-        valid_modes = ['Sea', 'Air', 'Land']
-        if v not in valid_modes:
-            raise ValueError(f'Transport mode must be one of: {", ".join(valid_modes)}')
-        return v
-
-    @field_validator('Currency')
-    def validate_currency(cls, v: str) -> str:
-        valid_currencies = ['USD', 'EUR', 'ILS']
-        if v not in valid_currencies:
-            raise ValueError(f'Currency must be one of: {", ".join(valid_currencies)}')
-        return v
-
-    model_config = {
-        "extra": "allow"  # Allow extra fields
-    }
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "ICL_POST_ID": 1732535225,
+                "login": "mzimmer@fibersystems.com",
+                "Currency": "USD",
+                "ICL_POST_TIME": 1732535225,
+                "Dispatch_City": "Kibbutz Ein Dor",
+                "Dispatch_Country": "ISR",
+                "Sea_Air_Land": "Land",
+                "Incoterm": "DAP",
+                "Shipping_City": "Ashdod",
+                "Shipping_Country": "DEU",
+                "Shipping_Zip": "222222",
+                "Line_1_UW": 0.2,
+                "Line_1_UH": 0.2,
+                "Line_1_UD": 0.2,
+                "Line_1_KG": 10.23,
+                "Line_1_total_U": 1,
+                "Line_1_total_V": 0.030624999999999996,
+                "Line_1_total_KG": 80.23,
+                "Line_2_UW": 0.2,
+                "Line_2_UH": 0.2,
+                "Line_2_UD": 0.2,
+                "Line_2_KG": 10.62,
+                "Line_2_total_U": 1,
+                "Line_2_total_V": 0.030624999999999996,
+                "Line_2_total_KG": 50.62
+            }
+        }
 
 class TeldorMappingDetails(BaseModel):
     """Details about how the request was mapped to internal format"""
