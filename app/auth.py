@@ -4,6 +4,16 @@ from configurations import USERNAME, PASSWORD
 def create_login_page():
     """Creates a beautifully designed login page"""
     
+    # Initialize session state variables
+    if "username" not in st.session_state:
+        st.session_state.username = ""
+    if "password" not in st.session_state:
+        st.session_state.password = ""
+    if "login_attempts" not in st.session_state:
+        st.session_state.login_attempts = 0
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+        
     # Center the login form on the page
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -52,9 +62,6 @@ def create_login_page():
             username = st.text_input("Username", key="username", placeholder="Enter your username")
             password = st.text_input("Password", type="password", key="password", placeholder="Enter your password")
             
-            if "login_attempts" not in st.session_state:
-                st.session_state.login_attempts = 0
-            
             def check_credentials():
                 """Validates the user credentials"""
                 if username.lower() == USERNAME.lower() and password == PASSWORD:
@@ -78,7 +85,7 @@ def create_login_page():
             # Footer
             st.markdown("""
             <div style='text-align: center; margin-top: 2rem; color: #6c757d;'>
-                <p>© 2025 CTS Shipping Calculator. All rights reserved.</p>
+                <p> 2025 CTS Shipping Calculator. All rights reserved.</p>
             </div>
             """, unsafe_allow_html=True)
 
