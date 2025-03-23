@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.models import TeldorRequest, TeldorResponse, ShipmentRequest
 from app.mapping.teldor.mapper import TeldorMapper
 from app.dependencies import get_calculator, get_db
+from app.utils.request_logger import RequestLogger
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,6 +13,8 @@ router = APIRouter(
     tags=["teldor"]
 )
 
+# Initialize request logger
+request_logger = RequestLogger()
 
 async def map_request(request_data: TeldorRequest, calculator=Depends(get_calculator)):
     """Map and validate external request format, then calculate price"""
@@ -36,7 +39,7 @@ async def map_request(request_data: TeldorRequest, calculator=Depends(get_calcul
         )
 
         # Format the response
-        return {
+        response = {
             "status": "success",
             "calculation": {
                 "total_price": result["total_price"],
@@ -63,14 +66,18 @@ async def map_request(request_data: TeldorRequest, calculator=Depends(get_calcul
             }
         }
 
+        return response
+
     except ValueError as e:
         logger.error(f"Validation error in mapping: {str(e)}")
-        return {
+        response = {
             "status": "error",
             "validation": {
                 "message": str(e)
             }
         }
+
+        return response
     except Exception as e:
         logger.error(f"Unexpected error in mapping: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -81,11 +88,19 @@ async def calculate_teldor(request_data: TeldorRequest, calculator=Depends(get_c
     """Calculate price based on Teldor request format"""
     try:
         logger.info(f"Received Teldor calculation request: {request_data}")
+        
+        # Log the incoming request
+        request_id = request_logger.log_teldor_request(request_data.model_dump())
 
         # Map and validate the request
         mapping_result = await map_request(request_data, calculator)
 
         if mapping_result["status"] == "error":
+            # Update log with error response
+            request_logger.log_teldor_request(
+                request_data.model_dump(),
+                {"status": "error", "message": mapping_result["validation"]["message"]}
+            )
             return TeldorResponse(
                 status="error",
                 error_message=mapping_result["validation"]["message"],
@@ -191,11 +206,24 @@ async def calculate_teldor(request_data: TeldorRequest, calculator=Depends(get_c
             service_levels=service_levels,
             error_message=None
         )
+        
+        # Update log with successful response
+        request_logger.log_teldor_request(
+            request_data.model_dump(),
+            response.model_dump()
+        )
 
         return response
 
     except Exception as e:
         logger.error(f"Error in Teldor calculation: {str(e)}")
+        
+        # Update log with exception
+        request_logger.log_teldor_request(
+            request_data.model_dump(),
+            {"status": "error", "message": str(e)}
+        )
+        
         return TeldorResponse(
             status="error",
             error_message=str(e),

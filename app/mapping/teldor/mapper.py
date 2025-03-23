@@ -38,6 +38,11 @@ class TeldorMapper:
 
         # Process each line item
         for line_num, item in line_items.items():
+            # Skip line items that don't have all required fields
+            if not all(field in item for field in ['UW', 'UH', 'UD', 'KG', 'total_U']):
+                logger.info(f"Skipping incomplete line item {line_num}")
+                continue
+                
             try:
                 # Get dimensions and weight
                 width = float(item.get('UW', 0))
@@ -48,7 +53,8 @@ class TeldorMapper:
 
                 # Validate dimensions
                 if not all([width, height, depth, weight]):
-                    raise ValueError(f"Invalid dimensions in line item {line_num}")
+                    logger.warning(f"Invalid dimensions in line item {line_num}, skipping")
+                    continue
 
                 # Convert dimensions to centimeters (if they're in meters)
                 width = width * 100
@@ -64,10 +70,11 @@ class TeldorMapper:
                 num_collo += quantity
 
             except (ValueError, TypeError) as e:
-                raise ValueError(f"Error processing line item {line_num}: {str(e)}")
+                logger.warning(f"Error processing line item {line_num}: {str(e)}, skipping")
+                continue
 
         if not all([max_width, max_length, total_height, total_weight]):
-            raise ValueError("Invalid combined dimensions")
+            raise ValueError("No valid line items found or invalid combined dimensions")
 
         return {
             "num_collo": num_collo,
@@ -90,7 +97,7 @@ class TeldorMapper:
             for key, value in request_data.items():
                 if key.startswith('Line_'):
                     parts = key.split('_')
-                    if len(parts) >= 3:
+                    if len(parts) >= 3 and value is not None:  # Only process fields that are not None
                         line_num = parts[1]
                         field = '_'.join(parts[2:])
                         if line_num not in line_items:

@@ -57,13 +57,13 @@ class TeldorRequest(BaseModel):
     Line_1_total_U: int
     Line_1_total_V: float
     Line_1_total_KG: float
-    Line_2_UW: float
-    Line_2_UH: float
-    Line_2_UD: float
-    Line_2_KG: float
-    Line_2_total_U: int
-    Line_2_total_V: float
-    Line_2_total_KG: float
+    Line_2_UW: Optional[float] = None
+    Line_2_UH: Optional[float] = None
+    Line_2_UD: Optional[float] = None
+    Line_2_KG: Optional[float] = None
+    Line_2_total_U: Optional[int] = None
+    Line_2_total_V: Optional[float] = None
+    Line_2_total_KG: Optional[float] = None
 
     class Config:
         json_schema_extra = {

@@ -14,6 +14,7 @@ from app.calculator import ShippingCalculator
 from app.data_loader import PricingData
 from datetime import datetime
 from app.auth import create_login_page, is_authenticated
+from app.utils.log_reader import LogReader
 
 from configurations import EXCEL_FILE
 
@@ -80,7 +81,7 @@ def main():
         return
 
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📊 Calculator", "⚙️ Configurations", "📜 History"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Calculator", "⚙️ Configurations", "📜 History", "📋 API Logs"])
     
     with tab1:
         st.markdown("### Calculate Shipping Costs")
@@ -550,6 +551,176 @@ def main():
                         'height': '{:.1f} cm'
                     })
                 )
+
+    with tab4:
+        st.markdown("### Teldor API Request Logs")
+        
+        # Initialize log reader
+        log_reader = LogReader()
+        
+        # Add refresh button
+        if st.button("Refresh Logs", key="refresh_logs"):
+            st.experimental_rerun()
+        
+        # Get logs
+        logs = log_reader.get_all_logs(limit=50)
+        
+        if not logs:
+            st.info("No logs found. API requests will be logged here when they are made.")
+        else:
+            st.success(f"Found {len(logs)} log entries")
+            
+            # Display logs in an expander for each log
+            for i, log in enumerate(logs):
+                timestamp = log.get('formatted_timestamp', 'Unknown time')
+                filename = log.get('filename', 'Unknown file')
+                
+                # Get request info
+                request = log.get('request', {})
+                request_id = request.get('ICL_POST_ID', 'Unknown')
+                country = request.get('Shipping_Country', 'Unknown')
+                
+                # Get response info
+                response = log.get('response', {})
+                status = response.get('status', 'No response') if isinstance(response, dict) else 'No response'
+                
+                # Create expander title with key info
+                expander_title = f"Request {request_id} to {country} - {timestamp} - Status: {status}"
+                
+                with st.expander(expander_title):
+                    # Create tabs within the expander
+                    log_tabs = st.tabs(["Overview", "Request", "Response", "Raw JSON"])
+                    
+                    with log_tabs[0]:
+                        # Overview tab
+                        st.markdown("#### Request Overview")
+                        
+                        # Create columns for key details
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**Request Details:**")
+                            st.markdown(f"- **ID:** {request_id}")
+                            st.markdown(f"- **Time:** {timestamp}")
+                            st.markdown(f"- **File:** {filename}")
+                            
+                        with col2:
+                            st.markdown("**Shipping Details:**")
+                            st.markdown(f"- **Country:** {request.get('Shipping_Country', 'N/A')}")
+                            st.markdown(f"- **City:** {request.get('Shipping_City', 'N/A')}")
+                            st.markdown(f"- **Zip:** {request.get('Shipping_Zip', 'N/A')}")
+                            st.markdown(f"- **Incoterm:** {request.get('Incoterm', 'N/A')}")
+                        
+                        # Display status
+                        if status == 'success':
+                            st.success(f"Status: {status}")
+                        elif status == 'error':
+                            st.error(f"Status: {status}")
+                            if isinstance(response, dict) and 'message' in response:
+                                st.error(f"Error: {response['message']}")
+                        else:
+                            st.info(f"Status: {status}")
+                    
+                    with log_tabs[1]:
+                        # Request tab
+                        st.markdown("#### Request Data")
+                        
+                        # Display line items
+                        st.subheader("Line Items")
+                        
+                        # Create a table for line items
+                        line_items = []
+                        
+                        # Check for Line_1
+                        if all(k in request for k in ['Line_1_UW', 'Line_1_UH', 'Line_1_UD', 'Line_1_KG']):
+                            line_items.append({
+                                'Line': 1,
+                                'Width (m)': request.get('Line_1_UW'),
+                                'Height (m)': request.get('Line_1_UH'),
+                                'Depth (m)': request.get('Line_1_UD'),
+                                'Weight (kg)': request.get('Line_1_KG'),
+                                'Quantity': request.get('Line_1_total_U'),
+                                'Volume (m³)': request.get('Line_1_total_V'),
+                                'Total Weight (kg)': request.get('Line_1_total_KG')
+                            })
+                        
+                        # Check for Line_2
+                        if all(k in request and request[k] is not None for k in ['Line_2_UW', 'Line_2_UH', 'Line_2_UD', 'Line_2_KG']):
+                            line_items.append({
+                                'Line': 2,
+                                'Width (m)': request.get('Line_2_UW'),
+                                'Height (m)': request.get('Line_2_UH'),
+                                'Depth (m)': request.get('Line_2_UD'),
+                                'Weight (kg)': request.get('Line_2_KG'),
+                                'Quantity': request.get('Line_2_total_U'),
+                                'Volume (m³)': request.get('Line_2_total_V'),
+                                'Total Weight (kg)': request.get('Line_2_total_KG')
+                            })
+                        
+                        if line_items:
+                            st.dataframe(line_items)
+                        else:
+                            st.warning("No line items found in request")
+                        
+                        # Other request details
+                        st.subheader("Other Details")
+                        other_details = {k: v for k, v in request.items() if not k.startswith('Line_')}
+                        st.json(other_details)
+                    
+                    with log_tabs[2]:
+                        # Response tab
+                        st.markdown("#### Response Data")
+                        
+                        if not response:
+                            st.warning("No response data available")
+                        elif isinstance(response, dict):
+                            # Check if it's a TeldorResponse
+                            if 'service_levels' in response:
+                                st.subheader("Service Levels")
+                                
+                                # Create a table for service levels
+                                if response['service_levels']:
+                                    service_levels = []
+                                    for sl in response['service_levels']:
+                                        service_levels.append({
+                                            'Service': sl.get('name', 'Unknown'),
+                                            'Price': sl.get('price', 0),
+                                            'Currency': sl.get('currency', 'eur').upper()
+                                        })
+                                    
+                                    st.dataframe(service_levels)
+                                else:
+                                    st.warning("No service levels in response")
+                                
+                                # Display dimensions
+                                st.subheader("Dimensions")
+                                if 'dimensions' in response:
+                                    dims = response['dimensions']
+                                    st.markdown(f"- **Length:** {dims.get('length', 'N/A')} cm")
+                                    st.markdown(f"- **Width:** {dims.get('width', 'N/A')} cm")
+                                    st.markdown(f"- **Height:** {dims.get('height', 'N/A')} cm")
+                                    st.markdown(f"- **Collo:** {dims.get('num_collo', 'N/A')}")
+                                
+                                # Display weights
+                                st.subheader("Weights")
+                                st.markdown(f"- **Chargeable Weight:** {response.get('chargeable_weight', 'N/A')} kg")
+                                st.markdown(f"- **Combined Weight:** {response.get('combined_weight', 'N/A')} kg")
+                                st.markdown(f"- **Non-stackable Weight:** {response.get('non_stackable_weight', 'N/A')} kg")
+                                st.markdown(f"- **Weight Type:** {response.get('weight_type', 'N/A')}")
+                                
+                                # Display zone
+                                st.subheader("Zone")
+                                st.markdown(f"- **Zone:** {response.get('zone', 'N/A')}")
+                            else:
+                                # Generic response
+                                st.json(response)
+                        else:
+                            st.text(str(response))
+                    
+                    with log_tabs[3]:
+                        # Raw JSON tab
+                        st.markdown("#### Raw Log Data")
+                        st.json(log)
 
     # Footer
     st.markdown("---")
