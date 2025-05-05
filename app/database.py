@@ -218,7 +218,7 @@ class Database:
             zone = str(zone).strip()
             service_level = str(service_level).strip()
             country = str(country).strip()
-
+            print(service_level)
             cursor.execute("""
                 SELECT rate
                 FROM price_list
@@ -233,6 +233,7 @@ class Database:
 
             result = cursor.fetchone()
             if not result or result[0] is None:
+                return float(0)
                 raise ValueError(
                     f"No rate found for weight {weight}kg in zone {zone} "
                     f"with service level {service_level} and country {country}"
