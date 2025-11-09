@@ -6,3 +6,6 @@ data/shipping.db
 .env
 __pycache__/
 *.pyc
+logs/
+
+.vscode/
