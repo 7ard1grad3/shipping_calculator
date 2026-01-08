@@ -2,8 +2,8 @@ services:
   shipping-calculator:
     build: .
     ports:
-      - "8000:8000"  # FastAPI port
-      - "8501:8501"  # Streamlit port
+      - "127.0.0.1:8081:8000"  # FastAPI (Changed host port to 8081)
+      - "127.0.0.1:8502:8501"  # Streamlit (Changed host port to 8502)
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env
@@ -11,7 +11,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
