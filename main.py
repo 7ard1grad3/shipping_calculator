@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import RedirectResponse
 import logging
 from app.models import ShipmentRequest
 from app.dependencies import get_calculator
@@ -73,14 +74,10 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 # Include Teldor routes
 app.include_router(teldor_routes.router)
 
-# Root endpoint
+# Root endpoint - redirect to unilog.sc
 @app.get("/")
 async def root():
-    return {
-        "message": "Welcome to CTS Shipping Calculator API",
-        "docs": "/docs",
-        "redoc": "/redoc"
-    }
+    return RedirectResponse(url="https://unilog.sc/")
 
 @app.post("/calculate-price")
 async def calculate_price(request: ShipmentRequest, calculator=Depends(get_calculator)):
